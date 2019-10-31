@@ -1,0 +1,5 @@
+11204c11204,11205
+<   as_fn_error $? "This version of ssl does not support certificate hostname verification." "$LINENO" 5
+---
+>   # as_fn_error $? "This version of ssl does not support certificate hostname verification." "$LINENO" 5
+>   echo "Skipped: This version of ssl does not support certificate hostname verification."
