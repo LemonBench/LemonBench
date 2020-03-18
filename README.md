@@ -2,7 +2,7 @@
 
 English Docs | 简体中文文档
 
-
+Current Version: 20200318 Intl BetaVersion
 
 LemonBench is a simple Linux Server Evaluation & Benchmark Toolkit, written in Shell Script.
 
@@ -18,7 +18,7 @@ Feel free for PR, and good issues, and please add stars and donate if you feel i
 
 - System Information (OS Release Info / CPU Info / Virt Info / Memory Info / Disk Info / Load Info etc.)
 - Network Information (IPV4 IP Address, ASN Info, Geo Info / IPV6 IP Address, ASN Info, Geo Info)
-- Streaming Unlock Test (HBO Now, Bahamut Anime, Bilibili HongKong/Macau/Taiwan, BiliBili TaiwanOnly)
+- Streaming Unlock Test (HBO Now, BBC, Princess Connect Re:Dive! Japan Server, Bahamut Anime, Bilibili HongKong/Macau/Taiwan)
 - CPU Performance Test (Based on Sysbench 1.0.17)
 - Memory Performance Test (Based on Sysbench 1.0.17)
 - Disk Performance Test (4K Block / 1M Block)
