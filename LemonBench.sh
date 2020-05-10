@@ -9,6 +9,15 @@
 # | Telegram (For +86 User): https://t.me/ilemonrain_chatbot         |
 # | Telegram Channel: https://t.me/ilemonrain_channel                |
 # #------------------------------------------------------------------#
+# | If you like this project, feel free to donate!                   |
+# | 如果你喜欢这个项目, 欢迎投喂打赏！                                  |
+# |                                                                  |
+# | Donate Method 打赏方式:                                          |
+# | Alipay QR Code: http://t.cn/EA3pZNt                              |
+# | 支付宝二维码:http://t.cn/EA3pZNt                                 |
+# | Wechat QR Code: http://t.cn/EA3p639                              |
+# | 微信二维码: http://t.cn/EA3p639                                   |
+# #------------------------------------------------------------------#
 #
 # 使用方法 (任选其一):
 # (1) wget -O- https://ilemonrain.com/download/shell/LemonBench.sh | bash
@@ -17,7 +26,7 @@
 # === 全局定义 =====================================
 
 # 全局参数定义
-BuildTime="20200318 Intl BetaVersion"
+BuildTime="20200426 Intl BetaVersion"
 WorkDir="/tmp/.LemonBench"
 UA_LemonBench="LemonBench/${BuildTime}"
 UA_Browser="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.87 Safari/537.36"
@@ -114,7 +123,7 @@ PasteBin_Upload() {
         --data "syntax=${PASTEBIN_SYNTAX:-text}")"
     if [ "$?" = "0" ]; then
         echo -e "${Msg_Success}Report Generate Success！Please save the follwing link:"
-        echo -e "${Msg_Info}Report URL：${uploadresult}"
+        echo -e "${Msg_Info}Report URL: ${uploadresult}"
     else
         echo -e "${Msg_Warning}Report Generate Failure, But you can still read $HOME/LemonBench.Result.txt to get this result！"
     fi
@@ -130,7 +139,7 @@ ReadConfig() {
 # 程序启动动作
 Global_StartupInit_Action() {
     Global_Startup_Header
-    echo -e "${Msg_Info}Loaded Testmode：${Font_SkyBlue}${Global_TestModeTips}${Font_Suffix}"
+    echo -e "${Msg_Info}Loaded Testmode:${Font_SkyBlue}${Global_TestModeTips}${Font_Suffix}"
     Function_CheckTracemode
     # 清理残留, 为新一次的运行做好准备
     echo -e "${Msg_Info}Initializing Running Enviorment, Please wait ..."
@@ -169,11 +178,25 @@ SystemInfo_GetHostname() {
     LBench_Result_Hostname="$(hostname)"
 }
 
+
 SystemInfo_GetCPUInfo() {
     mkdir -p ${WorkDir}/data >/dev/null 2>&1
     cat /proc/cpuinfo >${WorkDir}/data/cpuinfo
     local ReadCPUInfo="cat ${WorkDir}/data/cpuinfo"
     LBench_Result_CPUModelName="$($ReadCPUInfo | awk -F ': ' '/model name/{print $2}' | sort -u)"
+    local CPUFreqCount="$($ReadCPUInfo | awk -F ': ' '/cpu MHz/{print $2}' | sort -run | wc -l)"
+    if [ "${CPUFreqCount}" -ge "2" ]; then
+        local CPUFreqArray="$(cat /proc/cpuinfo | awk -F ': ' '/cpu MHz/{print $2}' | sort -run)"
+        local CPUFreq_Min="$(echo "$CPUFreqArray" | grep -oE '[0-9]+.[0-9]{3}' | awk 'BEGIN {min = 2147483647} {if ($1+0 < min+0) min=$1} END {print min}')"
+        local CPUFreq_Max="$(echo "$CPUFreqArray" | grep -oE '[0-9]+.[0-9]{3}' | awk 'BEGIN {max = 0} {if ($1+0 > max+0) max=$1} END {print max}')"
+        LBench_Result_CPUFreqMinGHz="$(echo $CPUFreq_Min | awk '{printf "%.2f\n",$1/1000}')"
+        LBench_Result_CPUFreqMaxGHz="$(echo $CPUFreq_Max | awk '{printf "%.2f\n",$1/1000}')"
+        Flag_DymanicCPUFreqDetected="1"
+    else
+        LBench_Result_CPUFreqMHz="$($ReadCPUInfo | awk -F ': ' '/cpu MHz/{print $2}' | sort -u)"
+        LBench_Result_CPUFreqGHz="$(echo $LBench_Result_CPUFreqMHz | awk '{printf "%.2f\n",$1/1000}')"
+        Flag_DymanicCPUFreqDetected="0"
+    fi
     LBench_Result_CPUCacheSize="$($ReadCPUInfo | awk -F ': ' '/cache size/{print $2}' | sort -u)"
     LBench_Result_CPUPhysicalNumber="$($ReadCPUInfo | awk -F ': ' '/physical id/{print $2}' | sort -u | wc -l)"
     LBench_Result_CPUCoreNumber="$($ReadCPUInfo | awk -F ': ' '/cpu cores/{print $2}' | sort -u)"
@@ -181,6 +204,7 @@ SystemInfo_GetCPUInfo() {
     LBench_Result_CPUProcessorNumber="$($ReadCPUInfo | awk -F ': ' '/processor/{print $2}' | wc -l)"
     LBench_Result_CPUSiblingsNumber="$($ReadCPUInfo | awk -F ': ' '/siblings/{print $2}' | sort -u)"
     LBench_Result_CPUTotalCoreNumber="$($ReadCPUInfo | awk -F ': ' '/physical id/&&/0/{print $2}' | wc -l)"
+    
     # 虚拟化能力检测
     SystemInfo_GetVirtType
     if [ "${Var_VirtType}" = "dedicated" ] || [ "${Var_VirtType}" = "wsl" ]; then
@@ -193,6 +217,16 @@ SystemInfo_GetCPUInfo() {
         else
             LBench_Result_CPUVirtualization="0"
         fi
+    elif [ "${Var_VirtType}" = "kvm" ] || [ "${Var_VirtType}" = "hyperv" ] || [ "${Var_VirtType}" = "microsoft" ] || [ "${Var_VirtType}" = "vmware" ]; then
+        LBench_Result_CPUIsPhysical="0"
+        local VirtCheck="$(cat /proc/cpuinfo | grep -oE 'vmx|svm' | uniq)"
+        if [ "${VirtCheck}" = "vmx" ] || [ "${VirtCheck}" = "svm" ]; then
+            LBench_Result_CPUVirtualization="2"
+            local VirtualizationType="$(lscpu | awk /Virtualization:/'{print $2}')"
+            LBench_Result_CPUVirtualizationType="${VirtualizationType}"
+        else
+            LBench_Result_CPUVirtualization="0"
+        fi        
     else
         LBench_Result_CPUIsPhysical="0"
     fi
@@ -220,6 +254,17 @@ Function_ReadCPUStat() {
         local result="$(echo $1 | grep -oE "[0-9]{1,2}.[0-9]{1} $2" | awk '{print $1}')"
         echo $result
     fi
+}
+
+SystemInfo_GetKernelVersion() {
+    local version="$(uname -r)"
+    LBench_Result_KernelVersion="${version}"
+}
+
+SystemInfo_GetNetworkCCMethod() {
+    local val_cc="$(sysctl -n net.ipv4.tcp_congestion_control)"
+    local val_qdisc="$(sysctl -n net.core.default_qdisc)"
+    LBench_Result_NetworkCCMethod="${val_cc} + ${val_qdisc}"
 }
 
 SystemInfo_GetSystemBit() {
@@ -385,7 +430,7 @@ SystemInfo_GetVirtType() {
         elif [ "${Var_VirtType}" = "microsoft" ]; then
             LBench_Result_VirtType="Microsoft Hyper-V"
         elif [ "${Var_VirtType}" = "xen" ]; then
-            LBench_Result_VirtType="XenServer"
+            LBench_Result_VirtType="Xen Hypervisor"
         elif [ "${Var_VirtType}" = "bochs" ]; then
             LBench_Result_VirtType="BOCHS"   
         elif [ "${Var_VirtType}" = "uml" ]; then
@@ -414,7 +459,15 @@ SystemInfo_GetVirtType() {
         # 未匹配到任何结果, 或者非虚拟机 
         elif [ "${Var_VirtType}" = "none" ]; then
             Var_VirtType="dedicated"
-            LBench_Result_VirtType="none"
+            LBench_Result_VirtType="None"
+            local Var_BIOSVendor="$(dmidecode -s bios-vendor)"
+            if [ "${Var_BIOSVendor}" = "SeaBIOS" ]; then
+                Var_VirtType="Unknown"
+                LBench_Result_VirtType="Unknown with SeaBIOS BIOS"
+            else
+                Var_VirtType="dedicated"
+                LBench_Result_VirtType="Dedicated with ${Var_BIOSVendor} BIOS"
+            fi
         fi
     elif [ ! -f "/usr/sbin/virt-what" ]; then
         Var_VirtType="Unknown"
@@ -486,8 +539,8 @@ SystemInfo_GetDiskStat() {
 }
 
 SystemInfo_GetNetworkInfo() {
-    local Result_IPV4="$(curl --connect-timeout 10 -fsL4 https://ipapi.co/json/)"
-    local Result_IPV6="$(curl --connect-timeout 10 -fsL6 https://ipapi.co/json/)"
+    local Result_IPV4="$(curl --connect-timeout 10 -fsL4 https://api.ilemonrain.com/LemonBench/ipgeo.php)"
+    local Result_IPV6="$(curl --connect-timeout 10 -fsL6 https://api.ilemonrain.com/LemonBench/ipgeo.php)"
     if [ "${Result_IPV4}" != "" ] && [ "${Result_IPV6}" = "" ]; then
         LBench_Result_NetworkStat="ipv4only"
     elif [ "${Result_IPV4}" = "" ] && [ "${Result_IPV6}" != "" ]; then
@@ -499,88 +552,32 @@ SystemInfo_GetNetworkInfo() {
     fi
     if [ "${LBench_Result_NetworkStat}" = "ipv4only" ] || [ "${LBench_Result_NetworkStat}" = "dualstack" ]; then
         IPAPI_IPV4_ip="$(PharseJSON "${Result_IPV4}" "ip")"
-        IPAPI_IPV4_city="$(PharseJSON "${Result_IPV4}" "city")"
-        IPAPI_IPV4_region="$(PharseJSON "${Result_IPV4}" "region")"
-        IPAPI_IPV4_country="$(PharseJSON "${Result_IPV4}" "country")"
+        IPAPI_IPV4_location="$(PharseJSON "${Result_IPV4}" "location")"
         IPAPI_IPV4_country_code="$(PharseJSON "${Result_IPV4}" "country_code")"
-        IPAPI_IPV4_country_name="$(PharseJSON "${Result_IPV4}" "country_name")"
         IPAPI_IPV4_asn="$(PharseJSON "${Result_IPV4}" "asn")"
-        IPAPI_IPV4_org="$(PharseJSON "${Result_IPV4}" "org")"
-        if [ "${IPAPI_IPV4_country_name}" = "${IPAPI_IPV4_city}" ]; then
-            IPAPI_IPV4_city=""
-        fi
+        IPAPI_IPV4_organization="$(PharseJSON "${Result_IPV4}" "organization")"
     fi
     if [ "${LBench_Result_NetworkStat}" = "ipv6only" ] || [ "${LBench_Result_NetworkStat}" = "dualstack" ]; then
-        IPAPI_IPV6_IP="$(PharseJSON "${Result_IPV6}" "ip")"
-        IPAPI_IPV6_city="$(PharseJSON "${Result_IPV6}" "city")"
-        IPAPI_IPV6_region="$(PharseJSON "${Result_IPV6}" "region")"
-        IPAPI_IPV6_country="$(PharseJSON "${Result_IPV6}" "country")"
+        IPAPI_IPV6_ip="$(PharseJSON "${Result_IPV6}" "ip")"
+        IPAPI_IPV6_location="$(PharseJSON "${Result_IPV6}" "location")"
         IPAPI_IPV6_country_code="$(PharseJSON "${Result_IPV6}" "country_code")"
-        IPAPI_IPV6_country_name="$(PharseJSON "${Result_IPV6}" "country_name")"
         IPAPI_IPV6_asn="$(PharseJSON "${Result_IPV6}" "asn")"
-        IPAPI_IPV6_org="$(PharseJSON "${Result_IPV6}" "org")"
-        if [ "${IPAPI_IPV6_country_name}" = "${IPAPI_IPV6_city}" ]; then
-            IPAPI_IPV6_city=""
-        fi
+        IPAPI_IPV6_organization="$(PharseJSON "${Result_IPV6}" "organization")"
     fi
     if [ "${LBench_Result_NetworkStat}" = "unknown" ]; then
         IPAPI_IPV4_ip="-"
-        IPAPI_IPV4_city=""
-        IPAPI_IPV4_region=""
-        IPAPI_IPV4_country="Unknown"
+        IPAPI_IPV4_location="-"
         IPAPI_IPV4_country_code="-"
-        IPAPI_IPV4_asn="Unknown"
+        IPAPI_IPV4_asn="-"
         IPAPI_IPV4_organization="-"
-        IPAPI_IPV6_IP="-"
-        IPAPI_IPV6_city=""
-        IPAPI_IPV6_region=""
-        IPAPI_IPV6_country="Unknown"
+        IPAPI_IPV6_ip="-"
+        IPAPI_IPV6_location="-"
         IPAPI_IPV6_country_code="-"
-        IPAPI_IPV6_asn="Unknown"
+        IPAPI_IPV6_asn="-"
         IPAPI_IPV6_organization="-"
     fi
 }
 
-# SystemInfo_GetNetworkInfo() {
-#    LBench_Result_LocalIP_IPV4="$(curl --connect-timeout 5 -fsL4 http://api-ipv4.ip.sb)"
-#    LBench_Result_LocalIP_IPV6="$(curl --connect-timeout 5 -fsL6 http://api-ipv6.ip.sb)"
-#    if [ "${LBench_Result_LocalIP_IPV4}" != "" ] && [ "${LBench_Result_LocalIP_IPV6}" = "" ]; then
-#        LBench_Result_NetworkStat="ipv4only"
-#        local Result_IPV4="$(curl -fsL4 --connect-timeout 5 "https://api-ipv4.ip.sb/geoip")"
-#    # 判断IPV6 Only
-#    elif [ "${LBench_Result_LocalIP_IPV4}" = "" ] && [ "${LBench_Result_LocalIP_IPV6}" != "" ]; then
-#        LBench_Result_NetworkStat="ipv6only"
-#        local Result_IPV6="$(curl -fsL6 --connect-timeout 5 https://api-ipv6.ip.sb/geoip)"
-#    # 判断双栈
-#    elif [ "${LBench_Result_LocalIP_IPV4}" != "" ] && [ "${LBench_Result_LocalIP_IPV6}" != "" ]; then
-#        LBench_Result_NetworkStat="dualstack"
-#        local Result_IPV4="$(curl -fsL4 --connect-timeout 5 "https://api-ipv4.ip.sb/geoip")"
-#        local Result_IPV6="$(curl -fsL6 --connect-timeout 5 https://api-ipv6.ip.sb/geoip)"
-#    # 返回未知值
-#    else
-#        LBench_Result_NetworkStat="unknown"
-#    fi
-#    # 提取IPV4信息
-#    if [ "${Result_IPV4}" != "" ]; then
-#        IPAPI_IPV4_ip="$(PharseJSON "${Result_IPV4}" "ip")"
-#        IPAPI_IPV4_city="$(PharseJSON "${Result_IPV4}" "city")"
-#        IPAPI_IPV4_region="$(PharseJSON "${Result_IPV4}" "region")"
-#        IPAPI_IPV4_country="$(PharseJSON "${Result_IPV4}" "country")"
-#        IPAPI_IPV4_country_code="$(PharseJSON "${Result_IPV4}" "country_code")"
-#        IPAPI_IPV4_asn="$(PharseJSON "${Result_IPV4}" "asn")"
-#        IPAPI_IPV4_organization="$(PharseJSON "${Result_IPV4}" "organization")"
-#    fi
-#    if [ "${Result_IPV6}" != "" ]; then
-#        IPAPI_IPV6_IP="$(PharseJSON "${Result_IPV6}" "ip")"
-#        IPAPI_IPV6_city="$(PharseJSON "${Result_IPV6}" "city")"
-#        IPAPI_IPV6_region="$(PharseJSON "${Result_IPV6}" "region")"
-#        IPAPI_IPV6_country="$(PharseJSON "${Result_IPV6}" "country")"
-#        IPAPI_IPV6_country_code="$(PharseJSON "${Result_IPV6}" "country_code")"
-#        IPAPI_IPV6_asn="$(PharseJSON "${Result_IPV6}" "asn")"
-#        IPAPI_IPV6_organization="$(PharseJSON "${Result_IPV6}" "organization")"
-#    fi
-# }
-#
 Function_GetSystemInfo() {
     clear
     echo -e "${Msg_Info}LemonBench Server Test Toolkit Build ${BuildTime}"
@@ -597,11 +594,13 @@ Function_GetSystemInfo() {
     SystemInfo_GetVirtType
     echo -e "${Msg_Info}Collecting System Info ..."
     SystemInfo_GetUptime
+    SystemInfo_GetKernelVersion
     echo -e "${Msg_Info}Collecting OS Release Info ..."
     SystemInfo_GetOSRelease
     echo -e "${Msg_Info}Collecting Disk Info ..."
     SystemInfo_GetDiskStat
     echo -e "${Msg_Info}Collecting Network Info ..."
+    SystemInfo_GetNetworkCCMethod
     SystemInfo_GetNetworkInfo
     echo -e "${Msg_Info}Starting Test ..."
     clear
@@ -614,7 +613,11 @@ Function_ShowSystemInfo() {
     else
         echo -e " ${Font_Yellow}OS Release:${Font_Suffix}\t\t${Font_SkyBlue}${LBench_Result_OSReleaseFullName}${Font_Suffix}"
     fi
-    echo -e " ${Font_Yellow}CPU Model:${Font_Suffix}\t\t${Font_SkyBlue}${LBench_Result_CPUModelName}${Font_Suffix}"
+    if [ "${Flag_DymanicCPUFreqDetected}" = "1" ]; then
+        echo -e " ${Font_Yellow}CPU Model:${Font_Suffix}\t\t${Font_SkyBlue}${LBench_Result_CPUModelName}${Font_Suffix}  ${Font_White}${LBench_Result_CPUFreqMinGHz}~${LBench_Result_CPUFreqMaxGHz}${Font_Suffix}${Font_SkyBlue} GHz${Font_Suffix}"
+    elif [ "${Flag_DymanicCPUFreqDetected}" = "0" ]; then
+        echo -e " ${Font_Yellow}CPU Model:${Font_Suffix}\t\t${Font_SkyBlue}${LBench_Result_CPUModelName}  ${LBench_Result_CPUFreqGHz} GHz${Font_Suffix}"
+    fi
     if [ "${LBench_Result_CPUCacheSize}" != "" ]; then
         echo -e " ${Font_Yellow}CPU Cache Size:${Font_Suffix}\t${Font_SkyBlue}${LBench_Result_CPUCacheSize}${Font_Suffix}"
     else
@@ -624,10 +627,10 @@ Function_ShowSystemInfo() {
     if [ "${LBench_Result_CPUIsPhysical}" = "1" ]; then
         # 如果只存在1个物理CPU (单路物理服务器)
         if [ "${LBench_Result_CPUPhysicalNumber}" -eq "1" ]; then
-            echo -e " ${Font_Yellow}CPU Number:${Font_Suffix}\t\t${LBench_Result_CPUPhysicalNumber} ${Font_SkyBlue}Physical CPU${Font_Suffix}, ${LBench_Result_CPUCoreNumber} ${Font_SkyBlue}Core(s)${Font_Suffix}, ${LBench_Result_CPUThreadNumber} ${Font_SkyBlue}Thread(s)${Font_Suffix}"
+            echo -e " ${Font_Yellow}CPU Number:${Font_Suffix}\t\t${LBench_Result_CPUPhysicalNumber} ${Font_SkyBlue}Physical CPU${Font_Suffix}, ${LBench_Result_CPUCoreNumber} ${Font_SkyBlue}Cores${Font_Suffix}, ${LBench_Result_CPUThreadNumber} ${Font_SkyBlue}Threads${Font_Suffix}"
         # 存在多个CPU, 继续深入分析检测 (多路物理服务器)
         elif [ "${LBench_Result_CPUPhysicalNumber}" -ge "2" ]; then
-            echo -e " ${Font_Yellow}CPU Number:${Font_Suffix}\t\t${LBench_Result_CPUPhysicalNumber} ${Font_SkyBlue}Physical CPU(s)${Font_Suffix}, ${LBench_Result_CPUCoreNumber} ${Font_SkyBlue}Core(s)/CPU${Font_Suffix}, ${LBench_Result_CPUSiblingsNumber} ${Font_SkyBlue}Thread(s)/CPU${Font_Suffix} (Total ${Font_SkyBlue}${LBench_Result_CPUTotalCoreNumber}${Font_Suffix} Core(s), ${Font_SkyBlue}${LBench_Result_CPUProcessorNumber}${Font_Suffix} Thread(s))"
+            echo -e " ${Font_Yellow}CPU Number:${Font_Suffix}\t\t${LBench_Result_CPUPhysicalNumber} ${Font_SkyBlue}Physical CPU(s)${Font_Suffix}, ${LBench_Result_CPUCoreNumber} ${Font_SkyBlue}Cores/CPU${Font_Suffix}, ${LBench_Result_CPUSiblingsNumber} ${Font_SkyBlue}Threads/CPU${Font_Suffix} (Total ${Font_SkyBlue}${LBench_Result_CPUTotalCoreNumber}${Font_Suffix} Cores, ${Font_SkyBlue}${LBench_Result_CPUProcessorNumber}${Font_Suffix} Threads)"
         # 针对树莓派等特殊情况做出检测优化
         elif [ "${LBench_Result_CPUThreadNumber}" = "0" ] && [ "${LBench_Result_CPUProcessorNumber} " -ge "1" ]; then
              echo -e " ${Font_Yellow}CPU Number:${Font_Suffix}\t\t${LBench_Result_CPUProcessorNumber} ${Font_SkyBlue}Cores${Font_Suffix}"
@@ -640,7 +643,12 @@ Function_ShowSystemInfo() {
     elif [ "${Var_VirtType}" = "openvz" ]; then
         echo -e " ${Font_Yellow}CPU Number:${Font_Suffix}\t\t${LBench_Result_CPUThreadNumber} ${Font_SkyBlue}vCPU${Font_Suffix} (${LBench_Result_CPUCoreNumber} ${Font_SkyBlue}Host Core/Thread${Font_Suffix})"
     else
-        echo -e " ${Font_Yellow}CPU Number:${Font_Suffix}\t\t${LBench_Result_CPUThreadNumber} ${Font_SkyBlue}vCPU${Font_Suffix}"
+        if [ "${LBench_Result_CPUVirtualization}" = "2" ]; then
+            echo -e " ${Font_Yellow}CPU Number:${Font_Suffix}\t\t${LBench_Result_CPUThreadNumber} ${Font_SkyBlue}vCPU${Font_Suffix}"
+            echo -e " ${Font_Yellow}VirtReady:${Font_Suffix}\t\t${Font_SkyBlue}Yes${Font_Suffix} ${Font_SkyBlue}(Nested Virtualization)${Font_Suffix}"
+        else
+            echo -e " ${Font_Yellow}CPU Number:${Font_Suffix}\t\t${LBench_Result_CPUThreadNumber} ${Font_SkyBlue}vCPU${Font_Suffix}"
+        fi
     fi
     echo -e " ${Font_Yellow}Virt Type:${Font_Suffix}\t\t${Font_SkyBlue}${LBench_Result_VirtType}${Font_Suffix}"
     # 内存使用率 分支判断
@@ -702,6 +710,10 @@ Function_ShowSystemInfo() {
     echo -e " ${Font_Yellow}Load (1/5/15min):${Font_Suffix}\t${Font_SkyBlue}${LBench_Result_LoadAverage_1min} ${LBench_Result_LoadAverage_5min} ${LBench_Result_LoadAverage_15min} ${Font_Suffix}"
     # 系统开机时间
     echo -e " ${Font_Yellow}Uptime:${Font_Suffix}\t\t${Font_SkyBlue}${LBench_Result_SystemInfo_Uptime_Day} Days, ${LBench_Result_SystemInfo_Uptime_Hour} Hours, ${LBench_Result_SystemInfo_Uptime_Minute} Minutes, ${LBench_Result_SystemInfo_Uptime_Second} Seconds${Font_Suffix}"
+    # 内核版本
+    echo -e " ${Font_Yellow}Kernel Version:${Font_Suffix}\t${Font_SkyBlue}${LBench_Result_KernelVersion}${Font_Suffix}"
+    # 网络拥塞控制方式
+    echo -e " ${Font_Yellow}Network CC Method:${Font_Suffix}\t${Font_SkyBlue}${LBench_Result_NetworkCCMethod}${Font_Suffix}"
     # 执行完成, 标记FLAG
     LBench_Flag_FinishSystemInfo="1"
 }
@@ -711,17 +723,17 @@ Function_ShowNetworkInfo() {
     if [ "${LBench_Result_NetworkStat}" = "ipv4only" ] || [ "${LBench_Result_NetworkStat}" = "dualstack" ]; then
         if [ "${IPAPI_IPV4_ip}" != "" ]; then
             echo -e " ${Font_Yellow}IPV4 - IP Address:${Font_Suffix}\t${Font_SkyBlue}[${IPAPI_IPV4_country_code}] ${IPAPI_IPV4_ip}${Font_Suffix}"
-            echo -e " ${Font_Yellow}IPV4 - ASN Info:${Font_Suffix}\t${Font_SkyBlue}${IPAPI_IPV4_asn} (${IPAPI_IPV4_org})${Font_Suffix}"
-            echo -e " ${Font_Yellow}IPV4 - Region:${Font_Suffix}\t\t${Font_SkyBlue}${IPAPI_IPV4_country_name} ${IPAPI_IPV4_region} ${IPAPI_IPV4_city}${Font_Suffix}"
+            echo -e " ${Font_Yellow}IPV4 - ASN Info:${Font_Suffix}\t${Font_SkyBlue}${IPAPI_IPV4_asn} (${IPAPI_IPV4_organization})${Font_Suffix}"
+            echo -e " ${Font_Yellow}IPV4 - Region:${Font_Suffix}\t\t${Font_SkyBlue}${IPAPI_IPV4_location}${Font_Suffix}"
         else
             echo -e " ${Font_Yellow}IPV6 - IP Address:${Font_Suffix}\t${Font_Red}Error: API Query Failed${Font_Suffix}"
         fi
     fi
     if [ "${LBench_Result_NetworkStat}" = "ipv6only" ] || [ "${LBench_Result_NetworkStat}" = "dualstack" ]; then
-        if [ "${IPAPI_IPV6_IP}" != "" ]; then
-            echo -e " ${Font_Yellow}IPV6 - IP Address:${Font_Suffix}\t${Font_SkyBlue}[${IPAPI_IPV6_country_code}] ${IPAPI_IPV6_IP}${Font_Suffix}"
-            echo -e " ${Font_Yellow}IPV6 - ASN Info:${Font_Suffix}\t${Font_SkyBlue}${IPAPI_IPV6_asn} (${IPAPI_IPV6_org})${Font_Suffix}"
-            echo -e " ${Font_Yellow}IPV6 - Region:${Font_Suffix}\t\t${Font_SkyBlue}${IPAPI_IPV6_country_name} ${IPAPI_IPV6_region} ${IPAPI_IPV6_city}${Font_Suffix}"
+        if [ "${IPAPI_IPV6_ip}" != "" ]; then
+            echo -e " ${Font_Yellow}IPV6 - IP Address:${Font_Suffix}\t${Font_SkyBlue}[${IPAPI_IPV6_country_code}] ${IPAPI_IPV6_ip}${Font_Suffix}"
+            echo -e " ${Font_Yellow}IPV6 - ASN Info:${Font_Suffix}\t${Font_SkyBlue}${IPAPI_IPV6_asn} (${IPAPI_IPV6_organization})${Font_Suffix}"
+            echo -e " ${Font_Yellow}IPV6 - Region:${Font_Suffix}\t\t${Font_SkyBlue}${IPAPI_IPV6_location}${Font_Suffix}"
         else
             echo -e " ${Font_Yellow}IPV6 - IP Address:${Font_Suffix}\t${Font_Red}Error: API Query Failed${Font_Suffix}"
         fi
@@ -738,8 +750,8 @@ Function_BenchStart() {
     echo -e "${Font_SkyBlue}LemonBench${Font_Suffix} ${Font_Yellow}Server Test Tookit${Font_Suffix} ${BuildTime} ${Font_SkyBlue}(C)iLemonrain. All Rights Reserved.${Font_Suffix}"
     echo -e "=========================================================================================="
     echo -e " "
-    echo -e " ${Msg_Info}${Font_Yellow}Bench Start Time：${Font_Suffix} ${Font_SkyBlue}${LBench_Result_BenchStartTime}${Font_Suffix}"
-    echo -e " ${Msg_Info}${Font_Yellow}Test Mode：${Font_Suffix} ${Font_SkyBlue}${Global_TestModeTips}${Font_Suffix}"
+    echo -e " ${Msg_Info}${Font_Yellow}Bench Start Time:${Font_Suffix} ${Font_SkyBlue}${LBench_Result_BenchStartTime}${Font_Suffix}"
+    echo -e " ${Msg_Info}${Font_Yellow}Test Mode:${Font_Suffix} ${Font_SkyBlue}${Global_TestModeTips}${Font_Suffix}"
     echo -e " "
 }
 
@@ -751,8 +763,8 @@ Function_BenchFinish() {
     echo -e ""
     echo -e "=========================================================================================="
     echo -e " "
-    echo -e " ${Msg_Info}${Font_Yellow}Bench Finish Time：${Font_Suffix} ${Font_SkyBlue}${LBench_Result_BenchFinishTime}${Font_Suffix}"
-    echo -e " ${Msg_Info}${Font_Yellow}Time Elapsed：${Font_Suffix} ${Font_SkyBlue}${LBench_Result_TimeElapsedSec} seconds${Font_Suffix}"
+    echo -e " ${Msg_Info}${Font_Yellow}Bench Finish Time:${Font_Suffix} ${Font_SkyBlue}${LBench_Result_BenchFinishTime}${Font_Suffix}"
+    echo -e " ${Msg_Info}${Font_Yellow}Time Elapsed:${Font_Suffix} ${Font_SkyBlue}${LBench_Result_TimeElapsedSec} seconds${Font_Suffix}"
     echo -e " "
 }
 
@@ -767,6 +779,7 @@ Function_MediaUnlockTest() {
     Function_MediaUnlockTest_BahamutAnime
     Function_MediaUnlockTest_AbemaTV_IPTest
     Function_MediaUnlockTest_PCRJP
+    #Function_MediaUnlockTest_IQiYi_Taiwan
     Function_MediaUnlockTest_BBC
     Function_MediaUnlockTest_BilibiliChinaMainland
     Function_MediaUnlockTest_BilibiliHKMCTW
@@ -924,6 +937,29 @@ Function_MediaUnlockTest_BilibiliTW() {
     fi   
 }
 
+# 流媒体解锁测试-爱奇艺台湾站 (Neta)
+#
+#Function_MediaUnlockTest_IQiYi_Taiwan() {
+#    echo -n -e " IQiYi Taiwan (Beta):\t\t\t->\c"
+#    local result="$(curl --user-agent "${UA_Browser}" -4 -fsL --max-time 30 "https://cache.video.iqiyi.com/dash?tvid=15364711300&bid=300&vid=3413c5aaa8e04f3724633fb6a4b55c8f&src=01010031010010000000&vt=0&rs=1&uid=&ori=pcw&ps=0&k_uid=949b5c6e48ff7dd333256e186a4d4e64&pt=0&d=0&s=&lid=&cf=&ct=&authKey=d6daa842887706d98d34de38e2c35d94&k_tag=1&ost=0&ppt=0&dfp=a11b673840ba64405b8614ebe8dd6db591c1bd76c1a87d4e9f9305a19f33f87688&locale=zh_tw&prio=%7B%22ff%22%3A%22f4v%22%2C%22code%22%3A2%7D&pck=&k_err_retries=0&up=&qd_v=2&tm=1587902927410&qdy=a&qds=0&k_ft1=706436220846084&k_ft4=1099714535424&k_ft5=1&bop=%7B%22version%22%3A%2210.0%22%2C%22dfp%22%3A%22a11b673840ba64405b8614ebe8dd6db591c1bd76c1a87d4e9f9305a19f33f87688%22%7D&ut=0&vf=674989244c4748e4bf06f169b9eee540")"
+#    if [ "$?" = "0" ]; then
+#        local res_st="$(echo $result | jq -r .data.st)"
+#        if [ "${res_st}" = "101" ]; then
+#            echo -n -e "\r IQiYi Taiwan (Beta):\t\t\t${Font_Green}Yes${Font_Suffix}\n"
+#            LemonBench_Result_MediaUnlockTest_IQiYi_Taiwan="Yes"
+#        elif [ "${res_st}" = "502" ]; then
+#            echo -n -e "\r IQiYi Taiwan (Beta):\t\t\t${Font_Red}No${Font_Suffix}\n"
+#            LemonBench_Result_MediaUnlockTest_IQiYi_Taiwan="No"
+#        else
+#            echo -n -e "\r IQiYi Taiwan (Beta):\t\t\t${Font_Red}Failed (Unexpected Result: $result)${Font_Suffix}\n"
+#            LemonBench_Result_MediaUnlockTest_IQiYi_Taiwan="Failed (Unexpected Result: $result)"
+#        fi
+#    else
+#        echo -n -e "\r IQiYi Taiwan (Beta):\t\t\t${Font_Red}Failed (Network Connection)${Font_Suffix}\n"
+#        LemonBench_Result_MediaUnlockTest_IQiYi_Taiwan="Failed (Network Connection)"
+#    fi
+#}
+
 # 流媒体解锁测试-Abema.TV
 #
 Function_MediaUnlockTest_AbemaTV_IPTest() {
@@ -975,23 +1011,23 @@ Function_MediaUnlockTest_AbemaTV_IPTest() {
 }
 
 Function_MediaUnlockTest_PCRJP() {
-    echo -n -e " Princess Connect Re:Dive (Beta):\t\c"
+    echo -n -e " Princess Connect Re:Dive Japan:\t\c"
     # 测试，连续请求两次 (单独请求一次可能会返回35, 第二次开始变成0)
     local result="$(curl --user-agent "${UA_Dalvik}" -4 -fsL --write-out %{http_code} --max-time 30 --output /dev/null https://api-priconne-redive.cygames.jp/)"
     local retval="$?"
     if [ "$retval" = "0" ]; then
         if [ "$result" = "404" ]; then
-            echo -n -e "\r Princess Connect Re:Dive (Beta)\t${Font_Green}Yes${Font_Suffix}\n"
+            echo -n -e "\r Princess Connect Re:Dive Japan:\t${Font_Green}Yes${Font_Suffix}\n"
             LemonBench_Result_MediaUnlockTest_PCRJP="Yes"
-        elif [ "$result" = "403" ]; then
-            echo -n -e "\r Princess Connect Re:Dive (Beta)\t${Font_Red}No${Font_Suffix}\n"
+        elif [ "$result" = "403" ] || [ "$result" = "000" ]; then
+            echo -n -e "\r Princess Connect Re:Dive Japan:\t${Font_Red}No${Font_Suffix}\n"
             LemonBench_Result_MediaUnlockTest_PCRJP="No"
         else
-            echo -n -e "\r Princess Connect Re:Dive (Beta)\t${Font_Red}Failed (Unexpected Result: $result)${Font_Suffix}\n"
+            echo -n -e "\r Princess Connect Re:Dive Japan:\t${Font_Red}Failed (Unexpected Result: $result)${Font_Suffix}\n"
             LemonBench_Result_MediaUnlockTest_PCRJP="Failed (Unexpected Result: $result)"
         fi
     else
-        echo -n -e "\r Princess Connect Re:Dive (Beta)\t${Font_Red}Failed (Unexpected Retval: $retval)${Font_Suffix}\n"
+        echo -n -e "\r Princess Connect Re:Dive Japan:\t${Font_Red}Failed (Unexpected Retval: $retval)${Font_Suffix}\n"
         LemonBench_Result_MediaUnlockTest_PCRJP="Failed (Unexpected Retval: $retval)"
     fi
 }
@@ -1094,7 +1130,6 @@ Function_Speedtest_Full() {
     Run_Speedtest "17184" "China, Shandong CU"
     Run_Speedtest "13704" "China, Nanjing CU"
     Run_Speedtest "24447" "China, Shanghai CU"
-    # Run_Speedtest "28225" "China, Changsha CU"
     Run_Speedtest "4690" "China, Lanzhou CU"
     # 国内测试 - 电信组
     Run_Speedtest "27377" "China, Beijing CT"
@@ -1107,6 +1142,23 @@ Function_Speedtest_Full() {
     Run_Speedtest "4647" "China, Hangzhou CM"
     Run_Speedtest "15863" "China, Nanning CM"
     Run_Speedtest "16145" "China, Lanzhou CM"
+    # 海外测试
+    Run_Speedtest "16176" "Hong Kong, HGC"
+    Run_Speedtest "13538" "Hong Kong, CSL"
+    Run_Speedtest "1536" "Hong Kong, PCCW"
+    Run_Speedtest "6527" "Korea, SK [Kdatacenter]"
+    Run_Speedtest "28910" "Japan, NTT [fdcservers]"
+    Run_Speedtest "21569" "Japan, NTT [i3d]"
+    Run_Speedtest "6087" "Japan GLBB"
+    Run_Speedtest "24333" "Japan Rakuten"
+    Run_Speedtest "17205" "Taiwan, Seednet"
+    Run_Speedtest "4938" "Taiwan, HiNet"
+    Run_Speedtest "11702" "Taiwan, TFN"
+    Run_Speedtest "13623" "Singapore, Singtel"
+    Run_Speedtest "7311" "Singapore, M1"
+    Run_Speedtest "367" "Singapore, NME"
+    Run_Speedtest "8864" "United States, Century Link"
+    Run_Speedtest "29623" "United States, Verizon"
     # 执行完成, 标记FLAG
     LBench_Flag_FinishSpeedtestFull="1"
     sleep 1
@@ -1131,9 +1183,9 @@ Run_DiskTest_DD() {
     sleep 1
     # 正式写测试
     dd if=/dev/zero of=/.tmp_LBench/DiskTest/$1 bs=$2 count=$3 oflag=direct 2>${Var_DiskTestResultFile}
-    local DiskTest_WriteSpeed_ResultRAW="$(cat ${Var_DiskTestResultFile} | grep -oE "[0-9]{1,4} kB\/s|[0-9]{1,4}.[0-9]{1,2} kB\/s|[0-9]{1,4} KB\/s|[0-9]{1,4}.[0-9]{1,2} KB\/s|[0-9]{1,4} MB\/s|[0-9]{1,4}.[0-9]{1,2} MB\/s|[0-9]{1,4} GB\/s|[0-9]{1,4}.[0-9]{1,2} GB\/s|[0-9]{1,4} TB\/s|[0-9]{1,4}.[0-9]{1,2} TB\/s")"
-    DiskTest_WriteSpeed="$(echo "${DiskTest_WriteSpeed_ResultRAW}" | sed "s/s/s/")"
-    local DiskTest_WriteTime_ResultRAW="$(cat ${Var_DiskTestResultFile} | grep -oE "[0-9]{1,}.[0-9]{1,} s|[0-9]{1,}.[0-9]{1,} s")"
+    local DiskTest_WriteSpeed_ResultRAW="$(cat ${Var_DiskTestResultFile} | grep -oE "[0-9]{1,4} kB\/s|[0-9]{1,4}.[0-9]{1,2} kB\/s|[0-9]{1,4} KB\/s|[0-9]{1,4}.[0-9]{1,2} KB\/s|[0-9]{1,4} MB\/s|[0-9]{1,4}.[0-9]{1,2} MB\/s|[0-9]{1,4} GB\/s|[0-9]{1,4}.[0-9]{1,2} GB\/s|[0-9]{1,4} TB\/s|[0-9]{1,4}.[0-9]{1,2} TB\/s|[0-9]{1,4} kB\/秒|[0-9]{1,4}.[0-9]{1,2} kB\/秒|[0-9]{1,4} KB\/秒|[0-9]{1,4}.[0-9]{1,2} KB\/秒|[0-9]{1,4} MB\/秒|[0-9]{1,4}.[0-9]{1,2} MB\/秒|[0-9]{1,4} GB\/秒|[0-9]{1,4}.[0-9]{1,2} GB\/秒|[0-9]{1,4} TB\/秒|[0-9]{1,4}.[0-9]{1,2} TB\/秒")"
+    DiskTest_WriteSpeed="$(echo "${DiskTest_WriteSpeed_ResultRAW}" | sed "s/秒/s/")"
+    local DiskTest_WriteTime_ResultRAW="$(cat ${Var_DiskTestResultFile} | grep -oE "[0-9]{1,}.[0-9]{1,} s|[0-9]{1,}.[0-9]{1,} s|[0-9]{1,}.[0-9]{1,} 秒|[0-9]{1,}.[0-9]{1,} 秒")"
     DiskTest_WriteTime="$(echo ${DiskTest_WriteTime_ResultRAW} | awk '{print $1}')"
     DiskTest_WriteIOPS="$(echo ${DiskTest_WriteTime} $3 | awk '{printf "%d\n",$2/$1}')"
     DiskTest_WritePastTime="$(echo ${DiskTest_WriteTime} | awk '{printf "%.2f\n",$1}')"
@@ -1153,9 +1205,9 @@ Run_DiskTest_DD() {
     sleep 0.5
     # 正式读测试
     dd if=/.tmp_LBench/DiskTest/$1 of=/dev/null bs=$2 count=$3 iflag=direct 2>${Var_DiskTestResultFile}
-    local DiskTest_ReadSpeed_ResultRAW="$(cat ${Var_DiskTestResultFile} | grep -oE "[0-9]{1,}.[0-9]{1,} MB\/s|[0-9]{1,}.[0-9]{1,} MB\/s|[0-9]{1,} MB\/s|[0-9]{1,} MB\/s|[0-9]{1,}.[0-9]{1,} GB\/s|[0-9]{1,} MB\/s|[0-9]{1,} MB\/s|[0-9]{1,}.[0-9]{1,} GB\/s")"
+    local DiskTest_ReadSpeed_ResultRAW="$(cat ${Var_DiskTestResultFile} | grep -oE "[0-9]{1,4} kB\/s|[0-9]{1,4}.[0-9]{1,2} kB\/s|[0-9]{1,4} KB\/s|[0-9]{1,4}.[0-9]{1,2} KB\/s|[0-9]{1,4} MB\/s|[0-9]{1,4}.[0-9]{1,2} MB\/s|[0-9]{1,4} GB\/s|[0-9]{1,4}.[0-9]{1,2} GB\/s|[0-9]{1,4} TB\/s|[0-9]{1,4}.[0-9]{1,2} TB\/s|[0-9]{1,4} kB\/秒|[0-9]{1,4}.[0-9]{1,2} kB\/秒|[0-9]{1,4} KB\/秒|[0-9]{1,4}.[0-9]{1,2} KB\/秒|[0-9]{1,4} MB\/秒|[0-9]{1,4}.[0-9]{1,2} MB\/秒|[0-9]{1,4} GB\/秒|[0-9]{1,4}.[0-9]{1,2} GB\/秒|[0-9]{1,4} TB\/秒|[0-9]{1,4}.[0-9]{1,2} TB\/秒")"
     DiskTest_ReadSpeed="$(echo "${DiskTest_ReadSpeed_ResultRAW}" | sed "s/s/s/")"
-    local DiskTest_ReadTime_ResultRAW="$(cat ${Var_DiskTestResultFile} | grep -oE "[0-9]{1,}.[0-9]{1,} s|[0-9]{1,}.[0-9]{1,} s")"
+    local DiskTest_ReadTime_ResultRAW="$(cat ${Var_DiskTestResultFile} | grep -oE "[0-9]{1,}.[0-9]{1,} s|[0-9]{1,}.[0-9]{1,} s|[0-9]{1,}.[0-9]{1,} 秒|[0-9]{1,}.[0-9]{1,} 秒")"
     DiskTest_ReadTime="$(echo ${DiskTest_ReadTime_ResultRAW} | awk '{print $1}')"
     DiskTest_ReadIOPS="$(echo ${DiskTest_ReadTime} $3 | awk '{printf "%d\n",$2/$1}')"
     DiskTest_ReadPastTime="$(echo ${DiskTest_ReadTime} | awk '{printf "%.2f\n",$1}')"
@@ -1320,7 +1372,8 @@ Function_BestTrace_Full() {
         Run_BestTrace "183.91.61.1" "${GlobalVar_TracerouteMode}" "50" "Singapore, China CT CN2"
         Run_BestTrace "118.201.1.11" "${GlobalVar_TracerouteMode}" "50" "Singapore, Singtel"
         Run_BestTrace "203.116.46.33" "${GlobalVar_TracerouteMode}" "50" "Singapore, StarHub"
-        Run_BestTrace "203.123.8.123" "${GlobalVar_TracerouteMode}" "50" "Singapore, M1"
+        Run_BestTrace "118.189.184.1" "${GlobalVar_TracerouteMode}" "50" "Singapore, M1"
+        Run_BEstTrace "118.189.38.17" "${GlobalVar_TracerouteMode}" "50" "Singapore, M1 GamePro"
         Run_BestTrace "13.228.0.251" "${GlobalVar_TracerouteMode}" "50" "Singapore, AWS"
         # 日本部分
         Run_BestTrace "61.213.155.84" "${GlobalVar_TracerouteMode}" "50" "Japan, NTT"
@@ -1426,13 +1479,13 @@ Function_SpooferTest() {
     /usr/local/bin/spoofer-prober -s0 -r0 | tee -a ${WorkDir}/spoofer.log >/dev/null
     if [ "$?" = "0" ]; then
         LBench_Result_SpooferResultURL="$(cat ${WorkDir}/spoofer.log | grep -oE "https://spoofer.caida.org/report.php\?sessionkey\=[0-9a-z]{1,}")"
-        echo -e "\n ${Msg_Success}Spoofer Result：${LBench_Result_SpooferResultURL}"
-        echo -e "\n Spoofer Result：${LBench_Result_SpooferResultURL}" >>${WorkDir}/Spoofer/result.txt
+        echo -e "\n ${Msg_Success}Spoofer Result:${LBench_Result_SpooferResultURL}"
+        echo -e "\n Spoofer Result:${LBench_Result_SpooferResultURL}" >>${WorkDir}/Spoofer/result.txt
         LBench_Flag_FinishSpooferTest="1"
     else
         cp -f ${WorkDir}/spoofer.log /tmp/lemonbench.spoofer.log
         echo -e "\n ${Msg_Error}Spoofer Test Fail! Please read /tmp/lemonbench.spoofer.log to view logs !"
-        echo -e "\n Spoofer Result：Fail" >>${WorkDir}/Spoofer/result.txt
+        echo -e "\n Spoofer Result:Fail" >>${WorkDir}/Spoofer/result.txt
         LBench_Flag_FinishSpooferTest="2"
     fi
     rm -rf ${WorkDir}/spoofer.log
@@ -1465,14 +1518,13 @@ Run_SysBench_CPU() {
     while [ $count -le $maxtestcount ]; do
         echo -e "\r ${Font_Yellow}$4: ${Font_Suffix}\t\t$count/$maxtestcount \c"
         local TestResult="$(sysbench --test=cpu --num-threads=$1 --cpu-max-prime=10000 --max-requests=1000000 --max-time=$2 run 2>&1)"
-        local TestScore="$(echo ${TestResult} | grep -oE "total number of events: [0-9]+" | grep -oE "[0-9]+")"
-        local TestScoreAvg="$(echo ${TestScore} $2 | awk '{printf "%d",$1/$2}')"
-        let TotalScore=TotalScore+TestScoreAvg
+        local TestScore="$(echo ${TestResult} | grep -oE "events per second: [0-9]+" | grep -oE "[0-9]+")"
+        local TotalScore="$(echo "${TotalScore} ${TestScore}" | awk '{printf "%d",$1+$2}')"
         let count=count+1
         local TestResult=""
         local TestScore="0"
     done
-    ResultScore="$(echo "${TotalScore} ${maxtestcount}" | awk '{printf "%d",$1/$2}')"
+    local ResultScore="$(echo "${TotalScore} ${maxtestcount}" | awk '{printf "%d",$1/$2}')"
     if [ "$1" = "1" ]; then
         echo -e "\r ${Font_Yellow}$4: ${Font_Suffix}\t\t${Font_SkyBlue}${ResultScore}${Font_Suffix} ${Font_Yellow}Scores${Font_Suffix}"
         echo -e " $4:\t\t\t${ResultScore} Scores" >>${WorkDir}/SysBench/CPU/result.txt
@@ -1534,7 +1586,7 @@ Run_SysBench_Memory() {
         else
             echo -e "\r ${Font_Yellow}$6:${Font_Suffix}\t\t$count/$maxtestcount \c"
         fi
-        local TestResult="$(sysbench --test=memory --num-threads=$1 --memory-block-size=1M --memory-total-size=1024G --memory-oper=$4 --max-time=$2 --memory-access-mode=$5 run 2>&1)"
+        local TestResult="$(sysbench --test=memory --num-threads=$1 --memory-block-size=1M --memory-total-size=102400G --memory-oper=$4 --max-time=$2 --memory-access-mode=$5 run 2>&1)"
         # 判断是MB还是MiB
         echo "${TestResult}" | grep -oE "MiB" >/dev/null 2>&1
         if [ $? -eq 0 ]; then
@@ -1678,7 +1730,7 @@ Function_GenerateResult() {
     echo -e "${Msg_Info}Saving local Report ..."
     cp ${WorkDir}/result/finalresult.txt $HOME/LemonBench.Result.txt
     sleep 0.1
-    echo -e "${Msg_Info}Generaring Report URL ..."
+    echo -e "${Msg_Info}Generating Report URL ..."
     cat ${WorkDir}/result/finalresult.txt | PasteBin_Upload
 }
 
@@ -1688,9 +1740,9 @@ Function_GenerateResult_Header() {
     echo -e " " >>$rfile
     echo -e " LemonBench Linux System Benchmark Utility Version ${BuildTime} " >>$rfile
     echo -e " " >>$rfile
-    echo -e " Bench Start Time：\t${LBench_Result_BenchStartTime}" >>$rfile
-    echo -e " Bench Finish Time：\t${LBench_Result_BenchFinishTime}" >>$rfile
-    echo -e " Test Mode：\t\t${Global_TestModeTips}" >>$rfile
+    echo -e " Bench Start Time:\t${LBench_Result_BenchStartTime}" >>$rfile
+    echo -e " Bench Finish Time:\t${LBench_Result_BenchFinishTime}" >>$rfile
+    echo -e " Test Mode:\t\t${Global_TestModeTips}" >>$rfile
     echo -e " \n\n"
 }
 
@@ -1701,18 +1753,24 @@ Function_GenerateResult_SystemInfo() {
         echo -e " \n -> System Information" >>$rfile
         echo -e " " >>$rfile
         echo -e " OS Release:\t\t${LBench_Result_OSReleaseFullName}" >>$rfile
-        echo -e " CPU Model:\t\t${LBench_Result_CPUModelName}" >>$rfile
+        if [ "${Flag_DymanicCPUFreqDetected}" = "1" ]; then
+            echo -e " CPU Model:\t\t${LBench_Result_CPUModelName}  ${LBench_Result_CPUFreqMinGHz}~${LBench_Result_CPUFreqMaxGHz} GHz" >>$rfile
+        elif [ "${Flag_DymanicCPUFreqDetected}" = "0" ]; then
+            echo -e " CPU Model:\t\t${LBench_Result_CPUModelName}  ${LBench_Result_CPUFreqGHz} GHz" >>$rfile
+        fi
         echo -e " CPU Cache Size:\t${LBench_Result_CPUCacheSize}" >>$rfile
         if [ "${LBench_Result_CPUIsPhysical}" = "1" ]; then
             if [ "${LBench_Result_CPUPhysicalNumber}" -eq "1" ]; then
-                echo -e " CPU Number:\t\t${LBench_Result_CPUPhysicalNumber} Physical CPU, ${LBench_Result_CPUCoreNumber} Core(s), ${LBench_Result_CPUThreadNumber} Thread(s)" >>$rfile
+                echo -e " CPU Number:\t\t${LBench_Result_CPUPhysicalNumber} Physical CPU, ${LBench_Result_CPUCoreNumber} Cores, ${LBench_Result_CPUThreadNumber} Threads" >>$rfile
             elif [ "${LBench_Result_CPUPhysicalNumber}" -ge "2" ]; then
-                echo -e " CPU Number:\t\t${LBench_Result_CPUPhysicalNumber} Physical CPUs, ${LBench_Result_CPUCoreNumber} Core(s)/CPU, ${LBench_Result_CPUSiblingsNumber} Thread(s)/CPU (Total ${LBench_Result_CPUTotalCoreNumber} Core(s), ${LBench_Result_CPUProcessorNumber} Threads)" >>$rfile
+                echo -e " CPU Number:\t\t${LBench_Result_CPUPhysicalNumber} Physical CPUs, ${LBench_Result_CPUCoreNumber} Cores/CPU, ${LBench_Result_CPUSiblingsNumber} Thread)/CPU (Total ${LBench_Result_CPUTotalCoreNumber} Cores, ${LBench_Result_CPUProcessorNumber} Threads)" >>$rfile
             elif [ "${LBench_Result_CPUThreadNumber}" = "0" ] && [ "${LBench_Result_CPUProcessorNumber} " -ge "1" ]; then
                 echo -e " CPU Number:\t\t${LBench_Result_CPUProcessorNumber} Cores" >>$rfile
             fi
             if [ "${LBench_Result_CPUVirtualization}" = "1" ]; then
                 echo -e " VirtReady:\t\tYes (Based on ${LBench_Result_CPUVirtualizationType})" >>$rfile
+            elif [ "${LBench_Result_CPUVirtualization}" = "2" ]; then
+                echo -e " VirtReady:\t\tYes (Nested Virtualization)" >>$rfile
             else
                 echo -e " VirtReady:\t\t${Font_SkyRed}No" >>$rfile
             fi
@@ -1742,7 +1800,9 @@ Function_GenerateResult_SystemInfo() {
         fi
         echo -e " Boot Device:\t\t${LBench_Result_DiskRootPath}" >>$rfile
         echo -e " Load (1/5/15min):\t${LBench_Result_LoadAverage_1min} ${LBench_Result_LoadAverage_5min} ${LBench_Result_LoadAverage_15min} " >>$rfile
-        echo -e " CPU Usage:\t\t${LBench_Result_CPUStat_UsedAll}% used, ${LBench_Result_CPUStat_iowait}% iowait, ${LBench_Result_CPUStat_steal}% steal"
+        echo -e " CPU Usage:\t\t${LBench_Result_CPUStat_UsedAll}% used, ${LBench_Result_CPUStat_iowait}% iowait, ${LBench_Result_CPUStat_steal}% steal" >>$rfile
+        echo -e " Kernel Version:\t${LBench_Result_KernelVersion}" >>$rfile
+        echo -e " Network CC Method:\t${LBench_Result_NetworkCCMethod}" >>$rfile
     fi
 }
 
@@ -1753,22 +1813,22 @@ Function_GenerateResult_NetworkInfo() {
         echo -e "\n -> Network Information\n" >>$rfile
         if [ "${LBench_Result_NetworkStat}" = "ipv4only" ] || [ "${LBench_Result_NetworkStat}" = "dualstack" ]; then
             if [ "${IPAPI_IPV4_ip}" != "" ]; then
-                local IPAPI_IPV4_IP_Masked="$(echo ${IPAPI_IPV4_ip} | awk -F'.' '{print $1"."$2."."$3".*"}')"
-                echo -e " IPV4 - IP Address:\t[${IPAPI_IPV4_country_code}] ${IPAPI_IPV4_IP_Masked}" >>$rfile
-                echo -e " IPV4 - ASN Info:\t${IPAPI_IPV4_asn} (${IPAPI_IPV4_org})" >>$rfile
-                echo -e " IPV4 - Region:\t\t${IPAPI_IPV4_country_name} ${IPAPI_IPV4_region} ${IPAPI_IPV4_city}" >>$rfile
+                local IPAPI_IPV4_ip_masked="$(echo ${IPAPI_IPV4_ip} | awk -F'.' '{print $1"."$2."."$3".*"}')"
+                echo -e " IPV4 - IP Address:\t[${IPAPI_IPV4_country_code}] ${IPAPI_IPV4_ip_masked}" >>$rfile
+                echo -e " IPV4 - ASN Info:\t${IPAPI_IPV4_asn} (${IPAPI_IPV4_organization})" >>$rfile
+                echo -e " IPV4 - Region:\t\t${IPAPI_IPV4_location}" >>$rfile
             else
-                echo -e " IPV6 - IP Address:\t${Font_Red}Error: API Query Failed" >>$rfile
+                echo -e " IPV6 - IP Address:\tError: API Query Failed" >>$rfile
             fi
         fi
         if [ "${LBench_Result_NetworkStat}" = "ipv6only" ] || [ "${LBench_Result_NetworkStat}" = "dualstack" ]; then
-            if [ "${IPAPI_IPV6_IP}" != "" ]; then
-                local IPAPI_IPV6_IP_Masked="$(echo ${IPAPI_IPV6_IP} | sed "s/[0-9a-f]\{1,4\}.$/*/g")"
+            if [ "${IPAPI_IPV6_ip}" != "" ]; then
+                local IPAPI_IPV6_IP_Masked="$(echo ${IPAPI_IPV6_ip} | sed "s/[0-9a-f]\{1,4\}.$/*/g")"
                 echo -e " IPV6 - IP Address:\t[${IPAPI_IPV6_country_code}] ${IPAPI_IPV6_IP_Masked}" >>$rfile
-                echo -e " IPV6 - ASN Info:\t${IPAPI_IPV6_asn} (${IPAPI_IPV6_org})" >>$rfile
-                echo -e " IPV6 - Region:\t\t${IPAPI_IPV6_country_name} ${IPAPI_IPV6_region} ${IPAPI_IPV6_city}" >>$rfile
+                echo -e " IPV6 - ASN Info:\t${IPAPI_IPV6_asn} (${IPAPI_IPV6_organization})" >>$rfile
+                echo -e " IPV6 - Region:\t\t${IPAPI_IPV6_location}" >>$rfile
             else
-                echo -e " IPV6 - IP Address:\t${Font_Red}Error: API Query Failed" >>$rfile
+                echo -e " IPV6 - IP Address:\tError: API Query Failed" >>$rfile
             fi
         fi
     fi
@@ -1786,7 +1846,9 @@ Function_GenerateResult_MediaUnlockTest() {
         # Abema.TV
         echo -e " Abema.TV:\t\t\t\t${LemonBench_Result_MediaUnlockTest_AbemaTV_IPTest}" >>$rfile
         # Princess Connect Re:Dive 日服
-        echo -e " Princess Connect Re:Dive (Beta):\t${LemonBench_Result_MediaUnlockTest_PCRJP}" >>$rfile
+        echo -e " Princess Connect Re:Dive Japan:\t${LemonBench_Result_MediaUnlockTest_PCRJP}" >>$rfile
+        # 爱奇艺台湾站
+        # echo -e " IQiYi Taiwan (Beta):\t\t\t${LemonBench_Result_MediaUnlockTest_IQiYi_Taiwan}" >>$rfile
         # BBC
         echo -e " BBC:\t\t\t\t\t${LemonBench_Result_MediaUnlockTest_BBC}" >>$rfile
         # 哔哩哔哩大陆限定
@@ -1843,9 +1905,10 @@ Function_GenerateResult_Spoofer() {
 Function_GenerateResult_Footer() {
     sleep 0.1
     local rfile="${WorkDir}/result/99-footer.result"
-    echo -e " \n\n\n"
-    echo -e " Generated by LemonBench on $(date -u "+%Y-%m-%dT%H:%M:%SZ") Version ${BuildTime}" >>$rfile
-    echo -e " \n"
+    echo -e "\nGenerated by LemonBench on $(date -u "+%Y-%m-%dT%H:%M:%SZ") Version ${BuildTime}\n" >>$rfile
+    # 恰饭时间！（雾
+    echo -e "[AD] 高质量美西CN2 GIA with ARIN IP (可直接解锁常见流媒体)，1核心/2G内存/15G SSD/1IP/1TB单向流量\n季付仅需588元/季度，年付仅需1899元/年，做站理想之选！\n使用优惠码 BW9K1IPZXN 即刻享受优惠价格！ \n购买传送门： http://ilemonra.in/HKSSLaxGIAPromo" >>$rfile
+    echo -e " \n"  >>$rfile
 }
 
 # =============== 检查 Virt-what 组件 ===============
@@ -1858,7 +1921,7 @@ Check_Virtwhat() {
         elif [ "${Var_OSRelease}" = "ubuntu" ] || [ "${Var_OSRelease}" = "debian" ]; then
             echo -e "${Msg_Warning}Virt-What Module not found, Installing ..."
             apt-get update
-            apt-get install -y virt-what
+            apt-get install -y virt-what dmidecode
         elif [ "${Var_OSRelease}" = "fedora" ]; then
             echo -e "${Msg_Warning}Virt-What Module not found, Installing ..."
             dnf -y install virt-what
@@ -1897,13 +1960,13 @@ Check_Speedtest_GetComponent() {
     SystemInfo_GetOSRelease
     SystemInfo_GetSystemBit
     if [ "${LBench_Result_SystemBit_Full}" = "amd64" ]; then
-        local DownloadSrc="https://download.ilemonrain.com/LemonBench/include/Speedtest/1.0.0.2/speedtest-amd64.tar.gz"
+        local DownloadSrc="https://raindrop.ilemonrain.com/LemonBench/include/Speedtest/1.0.0.2/speedtest-amd64.tar.gz"
     elif [ "${LBench_Result_SystemBit_Full}" = "i386" ]; then
-        local DownloadSrc="https://download.ilemonrain.com/LemonBench/include/Speedtest/1.0.0.2/speedtest-i386.tar.gz"
+        local DownloadSrc="https://raindrop.ilemonrain.com/LemonBench/include/Speedtest/1.0.0.2/speedtest-i386.tar.gz"
     elif [ "${LBench_Result_SystemBit_Full}" = "arm" ]; then
-        local DownloadSrc="https://download.ilemonrain.com/LemonBench/include/Speedtest/1.0.0.2/speedtest-arm.tar.gz"
+        local DownloadSrc="https://raindrop.ilemonrain.com/LemonBench/include/Speedtest/1.0.0.2/speedtest-arm.tar.gz"
     else
-        local DownloadSrc="https://download.ilemonrain.com/LemonBench/include/Speedtest/1.0.0.2/speedtest-i386.tar.gz"
+        local DownloadSrc="https://raindrop.ilemonrain.com/LemonBench/include/Speedtest/1.0.0.2/speedtest-i386.tar.gz"
     fi
     if [ "${Var_OSRelease}" = "centos" ] || [ "${Var_OSRelease}" = "rhel" ]; then
         echo -e "${Msg_Warning}Speedtest Module not found, Installing ..."
@@ -1995,19 +2058,19 @@ Check_BestTrace() {
         SystemInfo_GetSystemBit
         if [ "${LBench_Result_SystemBit_Full}" = "amd64" ]; then
             local BinaryName="besttrace64"
-            local DownloadSrc="https://download.ilemonrain.com/LemonBench/include/BestTrace/besttrace64.tar.gz"
+            local DownloadSrc="https://raindrop.ilemonrain.com/LemonBench/include/BestTrace/besttrace64.tar.gz"
             # local DownloadSrc="https://raw.githubusercontent.com/LemonBench/LemonBench/master/Resources/BestTrace/besttrace64.tar.gz"
         elif [ "${LBench_Result_SystemBit_Full}" = "i386" ]; then
             local BinaryName="besttrace32"
-            local DownloadSrc="https://download.ilemonrain.com/LemonBench/include/BestTrace/besttrace32.tar.gz"
+            local DownloadSrc="https://raindrop.ilemonrain.com/LemonBench/include/BestTrace/besttrace32.tar.gz"
             # local DownloadSrc="https://raw.githubusercontent.com/LemonBench/LemonBench/master/Resources/BestTrace/besttrace32.tar.gz"
         elif [ "${LBench_Result_SystemBit_Full}" = "arm" ]; then
             local BinaryName="besttracearm"
-            local DownloadSrc="https://download.ilemonrain.com/LemonBench/include/BestTrace/besttracearm.tar.gz"
+            local DownloadSrc="https://raindrop.ilemonrain.com/LemonBench/include/BestTrace/besttracearm.tar.gz"
             # local DownloadSrc="https://raw.githubusercontent.com/LemonBench/LemonBench/master/Resources/BestTrace/besttracearm.tar.gz"
         else
             local BinaryName="besttrace32"
-            local DownloadSrc="https://download.ilemonrain.com/LemonBench/include/BestTrace/besttrace32.tar.gz"
+            local DownloadSrc="https://raindrop.ilemonrain.com/LemonBench/include/BestTrace/besttrace32.tar.gz"
             # local DownloadSrc="https://raw.githubusercontent.com/LemonBench/LemonBench/master/Resources/BestTrace/besttrace32.tar.gz"
         fi
         mkdir -p ${WorkDir}/ >/dev/null 2>&1
@@ -2087,17 +2150,17 @@ Check_JSONQuery() {
         SystemInfo_GetOSRelease
         SystemInfo_GetSystemBit
         if [ "${LBench_Result_SystemBit_Short}" = "64" ]; then
-            local DownloadSrc="https://download.ilemonrain.com/LemonBench/include/JSONQuery/jq-amd64.tar.gz"
+            local DownloadSrc="https://raindrop.ilemonrain.com/LemonBench/include/JSONQuery/jq-amd64.tar.gz"
             # local DownloadSrc="https://raw.githubusercontent.com/LemonBench/LemonBench/master/Resources/JSONQuery/jq-amd64.tar.gz"
-            # local DownloadSrc="https://download.ilemonrain.com/LemonBench/include/jq/1.6/amd64/jq.tar.gz"
+            # local DownloadSrc="https://raindrop.ilemonrain.com/LemonBench/include/jq/1.6/amd64/jq.tar.gz"
         elif [ "${LBench_Result_SystemBit_Short}" = "32" ]; then
-            local DownloadSrc="https://download.ilemonrain.com/LemonBench/include/JSONQuery/jq-i386.tar.gz"
+            local DownloadSrc="https://raindrop.ilemonrain.com/LemonBench/include/JSONQuery/jq-i386.tar.gz"
             # local DownloadSrc="https://raw.githubusercontent.com/LemonBench/LemonBench/master/Resources/JSONQuery/jq-i386.tar.gz"
-            # local DownloadSrc="https://download.ilemonrain.com/LemonBench/include/jq/1.6/i386/jq.tar.gz"
+            # local DownloadSrc="https://raindrop.ilemonrain.com/LemonBench/include/jq/1.6/i386/jq.tar.gz"
         else
-            local DownloadSrc="https://download.ilemonrain.com/LemonBench/include/JSONQuery/jq-i386.tar.gz"
+            local DownloadSrc="https://raindrop.ilemonrain.com/LemonBench/include/JSONQuery/jq-i386.tar.gz"
             # local DownloadSrc="https://raw.githubusercontent.com/LemonBench/LemonBench/master/Resources/JSONQuery/jq-i386.tar.gz"
-            # local DownloadSrc="https://download.ilemonrain.com/LemonBench/include/jq/1.6/i386/jq.tar.gz"
+            # local DownloadSrc="https://raindrop.ilemonrain.com/LemonBench/include/jq/1.6/i386/jq.tar.gz"
         fi
         mkdir -p ${WorkDir}/
         if [ "${Var_OSRelease}" = "centos" ] || [ "${Var_OSRelease}" = "rhel" ]; then
@@ -2246,10 +2309,10 @@ Check_Spoofer_PreBuild() {
             echo -e "${Msg_Info}Installing Dependency"
             yum install -y epel-release
             yum install -y protobuf-devel libpcap-devel openssl-devel traceroute wget curl
-            local Spoofer_Version="$(curl  --user-agent "${UA_LemonBench}" -fskSL https://download.ilemonrain.com/LemonBench/include/Spoofer/latest_version)"
+            local Spoofer_Version="$(curl  --user-agent "${UA_LemonBench}" -fskSL https://raindrop.ilemonrain.com/LemonBench/include/Spoofer/latest_version)"
             echo -e "${Msg_Info}Downloading Spoof Module (Version ${Spoofer_Version}) ..."
             mkdir -p /tmp/_LBench/src/
-            wget -U "${UA_LemonBench}" -O /tmp/_LBench/src/spoofer-prober.gz https://download.ilemonrain.com/LemonBench/include/Spoofer/${Spoofer_Version}/${SysRel}/${SysVer}/${SysBit}/spoofer-prober.gz
+            wget -U "${UA_LemonBench}" -O /tmp/_LBench/src/spoofer-prober.gz https://raindrop.ilemonrain.com/LemonBench/include/Spoofer/${Spoofer_Version}/${SysRel}/${SysVer}/${SysBit}/spoofer-prober.gz
             echo -e "${Msg_Info}Installing Spoof Module ..."
             tar xf /tmp/_LBench/src/spoofer-prober.gz
             cp -f /tmp/_LBench/src/spoofer-prober /usr/local/bin/spoofer-prober
@@ -2262,10 +2325,10 @@ Check_Spoofer_PreBuild() {
             echo -e "${Msg_Info}Installing Dependency"
             apt-get update
             apt-get install --no-install-recommends -y ca-certificates libprotobuf-dev libpcap-dev traceroute wget curl
-            local Spoofer_Version="$(curl  --user-agent "${UA_LemonBench}" -fskSL https://download.ilemonrain.com/LemonBench/include/Spoofer/latest_version)"
+            local Spoofer_Version="$(curl  --user-agent "${UA_LemonBench}" -fskSL https://raindrop.ilemonrain.com/LemonBench/include/Spoofer/latest_version)"
             echo -e "${Msg_Info}Downloading Spoof Module (Version ${Spoofer_Version}) ..."
             mkdir -p /tmp/_LBench/src/
-            wget -U "${UA_LemonBench}" -O /tmp/_LBench/src/spoofer-prober.gz https://download.ilemonrain.com/LemonBench/include/Spoofer/${Spoofer_Version}/${SysRel}/${SysVer}/${SysBit}/spoofer-prober.gz
+            wget -U "${UA_LemonBench}" -O /tmp/_LBench/src/spoofer-prober.gz https://raindrop.ilemonrain.com/LemonBench/include/Spoofer/${Spoofer_Version}/${SysRel}/${SysVer}/${SysBit}/spoofer-prober.gz
             echo -e "${Msg_Info}Installing Spoof Module ..."
             tar xf /tmp/_LBench/src/spoofer-prober.gz
             cp -f /tmp/_LBench/src/spoofer-prober /usr/local/bin/spoofer-prober
@@ -2287,15 +2350,15 @@ Check_Spoofer_InstantBuild() {
         echo -e "${Msg_Info}Preparing compile enviorment ..."
         yum install -y epel-release
         yum install -y wget curl make gcc gcc-c++ traceroute openssl-devel protobuf-devel bison flex libpcap-devel
-        local Spoofer_Version="$(curl  --user-agent "${UA_LemonBench}"  -fskSL https://download.ilemonrain.com/LemonBench/include/Spoofer/latest_version)"
+        local Spoofer_Version="$(curl  --user-agent "${UA_LemonBench}"  -fskSL https://raindrop.ilemonrain.com/LemonBench/include/Spoofer/latest_version)"
         echo -e "${Msg_Info}Downloading Source code (Version ${Spoofer_Version})..."
         mkdir -p /tmp/_LBench/src/
-        wget -U "${UA_LemonBench}" -O /tmp/_LBench/src/spoofer.tar.gz https://download.ilemonrain.com/LemonBench/include/Spoofer/${Spoofer_Version}/spoofer.tar.gz
+        wget -U "${UA_LemonBench}" -O /tmp/_LBench/src/spoofer.tar.gz https://raindrop.ilemonrain.com/LemonBench/include/Spoofer/${Spoofer_Version}/spoofer.tar.gz
         echo -e "${Msg_Info}Compiling Spoof Module ..."
         cd /tmp/_LBench/src/
         tar xvf spoofer.tar.gz && cd spoofer-"${Spoofer_Version}"
         # 测试性补丁
-        wget -U "${UA_LemonBench}" -O /tmp/_LBench/src/configure.patch https://download.ilemonrain.com/LemonBench/include/Spoofer/${Spoofer_Version}/patch/configure.patch
+        wget -U "${UA_LemonBench}" -O /tmp/_LBench/src/configure.patch https://raindrop.ilemonrain.com/LemonBench/include/Spoofer/${Spoofer_Version}/patch/configure.patch
         patch -p0 configure /tmp/_LBench/src/configure.patch
         ./configure && make -j ${LBench_Result_CPUThreadNumber}
         cp prober/spoofer-prober /usr/local/bin/spoofer-prober
@@ -2306,15 +2369,15 @@ Check_Spoofer_InstantBuild() {
         echo -e "${Msg_Info}Preparing compile enviorment ..."
         apt-get update
         apt-get install -y --no-install-recommends wget curl gcc g++ make traceroute protobuf-compiler libpcap-dev libprotobuf-dev openssl libssl-dev ca-certificates
-        local Spoofer_Version="$(curl --user-agent "${UA_LemonBench}" -fskSL https://download.ilemonrain.com/LemonBench/include/Spoofer/latest_version)"
+        local Spoofer_Version="$(curl --user-agent "${UA_LemonBench}" -fskSL https://raindrop.ilemonrain.com/LemonBench/include/Spoofer/latest_version)"
         echo -e "${Msg_Info}Downloading Source code (Version ${Spoofer_Version})..."
         mkdir -p /tmp/_LBench/src/
-        wget -U "${UA_LemonBench}" -O /tmp/_LBench/src/spoofer.tar.gz https://download.ilemonrain.com/LemonBench/include/Spoofer/${Spoofer_Version}/spoofer.tar.gz
+        wget -U "${UA_LemonBench}" -O /tmp/_LBench/src/spoofer.tar.gz https://raindrop.ilemonrain.com/LemonBench/include/Spoofer/${Spoofer_Version}/spoofer.tar.gz
         echo -e "${Msg_Info}Compiling Spoof Module ..."
         cd /tmp/_LBench/src/
         tar xvf spoofer.tar.gz && cd spoofer-"${Spoofer_Version}"
         # 测试性补丁
-        wget -U "${UA_LemonBench}" -O /tmp/_LBench/src/configure.patch https://download.ilemonrain.com/LemonBench/include/Spoofer/${Spoofer_Version}/patch/configure.patch
+        wget -U "${UA_LemonBench}" -O /tmp/_LBench/src/configure.patch https://raindrop.ilemonrain.com/LemonBench/include/Spoofer/${Spoofer_Version}/patch/configure.patch
         patch -p0 configure /tmp/_LBench/src/configure.patch
         ./configure && make -j ${LBench_Result_CPUThreadNumber}
         cp prober/spoofer-prober /usr/local/bin/spoofer-prober
@@ -2324,15 +2387,15 @@ Check_Spoofer_InstantBuild() {
         echo -e "${Msg_Info}Release Detected: ${Var_OSRelease}"
         echo -e "${Msg_Info}Preparing compile enviorment ..."
         dnf install -y wget curl make gcc gcc-c++ traceroute openssl-devel protobuf-devel bison flex libpcap-devel
-        local Spoofer_Version="$(curl --user-agent "${UA_LemonBench}" -fskSL https://download.ilemonrain.com/LemonBench/include/Spoofer/latest_version)"
+        local Spoofer_Version="$(curl --user-agent "${UA_LemonBench}" -fskSL https://raindrop.ilemonrain.com/LemonBench/include/Spoofer/latest_version)"
         echo -e "${Msg_Info}Downloading Source code (Version ${Spoofer_Version})..."
         mkdir -p /tmp/_LBench/src/
-        wget -U "${UA_LemonBench}" -O /tmp/_LBench/src/spoofer.tar.gz https://download.ilemonrain.com/LemonBench/include/Spoofer/${Spoofer_Version}/spoofer.tar.gz
+        wget -U "${UA_LemonBench}" -O /tmp/_LBench/src/spoofer.tar.gz https://raindrop.ilemonrain.com/LemonBench/include/Spoofer/${Spoofer_Version}/spoofer.tar.gz
         echo -e "${Msg_Info}Compiling Spoof Module ..."
         cd /tmp/_LBench/src/
         tar xvf spoofer.tar.gz && cd spoofer-"${Spoofer_Version}"
         # 测试性补丁
-        wget -U "${UA_LemonBench}" -O /tmp/_LBench/src/configure.patch https://download.ilemonrain.com/LemonBench/include/Spoofer/${Spoofer_Version}/patch/configure.patch
+        wget -U "${UA_LemonBench}" -O /tmp/_LBench/src/configure.patch https://raindrop.ilemonrain.com/LemonBench/include/Spoofer/${Spoofer_Version}/patch/configure.patch
         patch -p0 configure /tmp/_LBench/src/configure.patch
         ./configure && make -j ${LBench_Result_CPUThreadNumber}
         cp prober/spoofer-prober /usr/local/bin/spoofer-prober
@@ -2343,15 +2406,15 @@ Check_Spoofer_InstantBuild() {
         echo -e "${Msg_Info}Preparing compile enviorment ..."
         apk update
         apk add traceroute gcc g++ make openssl-dev protobuf-dev libpcap-dev
-        local Spoofer_Version="$(curl  --user-agent "${UA_LemonBench}"  -fskSL https://download.ilemonrain.com/LemonBench/include/Spoofer/latest_version)"
+        local Spoofer_Version="$(curl  --user-agent "${UA_LemonBench}"  -fskSL https://raindrop.ilemonrain.com/LemonBench/include/Spoofer/latest_version)"
         echo -e "${Msg_Info}Downloading Source code (Version ${Spoofer_Version})..."
         mkdir -p /tmp/_LBench/src/
-        wget -U "${UA_LemonBench}" -O /tmp/_LBench/src/spoofer.tar.gz https://download.ilemonrain.com/LemonBench/include/Spoofer/${Spoofer_Version}/spoofer.tar.gz
+        wget -U "${UA_LemonBench}" -O /tmp/_LBench/src/spoofer.tar.gz https://raindrop.ilemonrain.com/LemonBench/include/Spoofer/${Spoofer_Version}/spoofer.tar.gz
         echo -e "${Msg_Info}Compiling Spoof Module ..."
         cd /tmp/_LBench/src/
         tar xvf spoofer.tar.gz && cd spoofer-"${Spoofer_Version}"
         # 测试性补丁
-        wget -U "${UA_LemonBench}" -O /tmp/_LBench/src/configure.patch https://download.ilemonrain.com/LemonBench/include/Spoofer/${Spoofer_Version}/patch/configure.patch
+        wget -U "${UA_LemonBench}" -O /tmp/_LBench/src/configure.patch https://raindrop.ilemonrain.com/LemonBench/include/Spoofer/${Spoofer_Version}/patch/configure.patch
         patch -p0 configure /tmp/_LBench/src/configure.patch
         ./configure && make -j ${LBench_Result_CPUThreadNumber}
         cp prober/spoofer-prober /usr/local/bin/spoofer-prober
@@ -2376,7 +2439,7 @@ Check_SysBench() {
             apt-get install -y sysbench
         elif [ "${Var_OSRelease}" = "debian" ]; then
             echo -e "${Msg_Warning}Sysbench Module not found, installing ..."
-            local mirrorbase="https://download.ilemonrain.com/LemonBench"
+            local mirrorbase="https://raindrop.ilemonrain.com/LemonBench"
             local componentname="Sysbench"
             local version="1.0.19-1"
             local arch="debian"
@@ -2492,7 +2555,7 @@ Global_Startup_Header() {
 
  Version: ${BuildTime}
 
- Reporting Bugs Via：
+ Reporting Bugs Via:
  https://t.me/ilemonrain 或 https://t.me/ilemonrain_chatbot
  (简体中文/繁體中文/English only)
  
