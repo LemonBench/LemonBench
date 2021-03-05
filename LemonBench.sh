@@ -26,7 +26,7 @@
 # === 全局定义 =====================================
 
 # 全局参数定义
-BuildTime="20200426 Intl BetaVersion"
+BuildTime="20210306 Intl BetaVersion"
 WorkDir="/tmp/.LemonBench"
 UA_LemonBench="LemonBench/${BuildTime}"
 UA_Browser="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.87 Safari/537.36"
@@ -784,6 +784,8 @@ Function_MediaUnlockTest() {
     Function_MediaUnlockTest_BilibiliChinaMainland
     Function_MediaUnlockTest_BilibiliHKMCTW
     Function_MediaUnlockTest_BilibiliTW
+    Function_MediaUnlockTest_Netflix
+    Function_MediaUnlockTest_DisneyPlus
     LBench_Flag_FinishMediaUnlockTest="1"
 }
 
@@ -1051,6 +1053,65 @@ Function_MediaUnlockTest_BBC() {
     fi
 }
 
+Function_MediaUnlockTest_Netflix() {
+    _result=$(curl -X GET -sLI "https://www.netflix.com/" -o /dev/null -w '%{http_code}\n')
+    if [ "${_result}" = 403 ];then
+        echo -n -e "\r Netflix:\t\t\t\t${Font_Red}No${Font_Suffix}\n"
+        LemonBench_Result_MediaUnlockTest_Netflix="No"
+        return 1
+    fi
+    _result=$(curl -sL "https://www.netflix.com/title/80018499" -o /dev/null -w '%{http_code}\n')
+    if [ "${_result}" != 200 ];then
+        echo -n -e "\r Netflix:\t\t\t\t${Font_Red}No${Font_Suffix}\n"
+        LemonBench_Result_MediaUnlockTest_Netflix="No"
+        return 1
+    fi
+    _result1=$(curl -X GET -sLI "https://www.netflix.com/title/70143836" -o /dev/null -w '%{http_code}\n')
+    _result2=$(curl -X GET -sLI "https://www.netflix.com/title/80027042" -o /dev/null -w '%{http_code}\n')
+    _result3=$(curl -X GET -sLI "https://www.netflix.com/title/70140425" -o /dev/null -w '%{http_code}\n')
+    _result4=$(curl -X GET -sLI "https://www.netflix.com/title/70283261" -o /dev/null -w '%{http_code}\n')
+    _result5=$(curl -X GET -sLI "https://www.netflix.com/title/70143860" -o /dev/null -w '%{http_code}\n')
+    _result6=$(curl -X GET -sLI "https://www.netflix.com/title/70202589" -o /dev/null -w '%{http_code}\n')
+    if [ "${_result1}" = 404 ] && \
+       [ "${_result2}" = 404 ] && \
+       [ "${_result3}" = 404 ] && \
+       [ "${_result4}" = 404 ] && \
+       [ "${_result5}" = 404 ] && \
+       [ "${_result6}" = 404 ];then
+        echo -n -e "\r Netflix:\t\t\t\t${Font_Yellow}Homemade Only${Font_Suffix}\n"
+        LemonBench_Result_MediaUnlockTest_Netflix="Homemade Only"
+        return 1
+    fi
+    
+    _region=$(curl -X GET -sLI "https://www.netflix.com/title/80018499" 2>&1 | grep location | awk '{print $2}' | cut -d '/' -f4 | cut -d '-' -f1)
+    
+    if [ -z "${_region}" ];then
+        _region="US"
+    fi
+    echo -n -e "\r Netflix:\t\t\t\t${Font_Green}Yes(Region: ${_region^^})${Font_Suffix}\n"
+    LemonBench_Result_MediaUnlockTest_Netflix="Yes(Region: ${_region^^})"
+    return 0
+}
+
+Function_MediaUnlockTest_DisneyPlus() {
+    _result=$(curl -sLI "https://www.disneyplus.com/movies/drain-the-titanic/5VNZom2KYtlb")
+    if [[ "${_result} | grep" = *"unavailable"* ]]; then
+        echo -n -e "\r DisneyPlus:\t\t\t\t${Font_Red}No${Font_Suffix}\n";
+        LemonBench_Result_MediaUnlockTest_DisneyPlus="No"
+        return 1
+    elif [[ "${_result}" = *"preview"* ]]; then
+        echo -n -e "\r DisneyPlus:\t\t\t\t${Font_Yellow}Comming Soon${Font_Suffix}\n"
+        LemonBench_Result_MediaUnlockTest_DisneyPlus="Comming Soon"
+        return 0
+    elif [[ "${_result}" = *"x-dss-country"* ]] || [[ "${_result}" = *"optimizelyEndUserId"* ]]; then
+        echo -n -e "\r DisneyPlus:\t\t\t\t${Font_Green}Yes${Font_Suffix}\n"
+        LemonBench_Result_MediaUnlockTest_DisneyPlus="Yes"
+        return 0
+    else
+    echo -n -e "\r DisneyPlus:\t\t\t\t${Font_Red}No${Font_Suffix}\n";
+    LemonBench_Result_MediaUnlockTest_DisneyPlus="No"
+    fi
+}
 # =============== Speedtest 部分 ===============
 Run_Speedtest() {
     # 调用方式: Run_Speedtest "服务器ID" "节点名称(用于显示)"
@@ -1857,6 +1918,10 @@ Function_GenerateResult_MediaUnlockTest() {
         echo -e " Bilibili Hongkong/Macau/Taiwan:\t${LemonBench_Result_MediaUnlockTest_BilibiliHKMCTW}" >>$rfile
         # 哔哩哔哩台湾限定
         echo -e " Bilibili Taiwan Only:\t\t\t${LemonBench_Result_MediaUnlockTest_BilibiliTW}" >>$rfile
+        # Netflix
+        echo -e " Netflix :\t\t\t\t${LemonBench_Result_MediaUnlockTest_Netflix}" >>$rfile
+        # DisneyPlus
+        echo -e " DisneyPlus :\t\t\t\t${LemonBench_Result_MediaUnlockTest_DisneyPlus}" >>$rfile
     fi
 }
 
