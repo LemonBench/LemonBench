@@ -1059,30 +1059,33 @@ Function_MediaUnlockTest_Netflix() {
     if [ "${_result}" = 403 ];then
         echo -n -e "\r Netflix:\t\t\t\t${Font_Red}No${Font_Suffix}\n"
         LemonBench_Result_MediaUnlockTest_Netflix="No"
+        return 1
     fi
     _result=$(curl -sL "https://www.netflix.com/title/80018499" -o /dev/null -w '%{http_code}\n')
     if [ "${_result}" != 200 ];then
         echo -n -e "\r Netflix:\t\t\t\t${Font_Red}No${Font_Suffix}\n"
         LemonBench_Result_MediaUnlockTest_Netflix="No"
+        return 1
     fi
-    _result1=$(curl -X GET -sLI "https://www.netflix.com/title/70143836" -o /dev/null -w '%{http_code}\n')
-    _result2=$(curl -X GET -sLI "https://www.netflix.com/title/80027042" -o /dev/null -w '%{http_code}\n')
-    _result3=$(curl -X GET -sLI "https://www.netflix.com/title/70140425" -o /dev/null -w '%{http_code}\n')
-    _result4=$(curl -X GET -sLI "https://www.netflix.com/title/70283261" -o /dev/null -w '%{http_code}\n')
-    _result5=$(curl -X GET -sLI "https://www.netflix.com/title/70143860" -o /dev/null -w '%{http_code}\n')
-    _result6=$(curl -X GET -sLI "https://www.netflix.com/title/70202589" -o /dev/null -w '%{http_code}\n')
-    if [ "${_result1}" = 404 ] && \
-       [ "${_result2}" = 404 ] && \
-       [ "${_result3}" = 404 ] && \
-       [ "${_result4}" = 404 ] && \
-       [ "${_result5}" = 404 ] && \
-       [ "${_result6}" = 404 ];then
+    curl -X GET -sLI "https://www.netflix.com/title/70143836" -o /dev/null -w '%{http_code}\n' > /tmp/nfresult1 &
+    curl -X GET -sLI "https://www.netflix.com/title/80027042" -o /dev/null -w '%{http_code}\n' > /tmp/nfresult2 &
+    curl -X GET -sLI "https://www.netflix.com/title/70140425" -o /dev/null -w '%{http_code}\n' > /tmp/nfresult3 &
+    curl -X GET -sLI "https://www.netflix.com/title/70283261" -o /dev/null -w '%{http_code}\n' > /tmp/nfresult4 &
+    curl -X GET -sLI "https://www.netflix.com/title/70143860" -o /dev/null -w '%{http_code}\n' > /tmp/nfresult5 &
+    curl -X GET -sLI "https://www.netflix.com/title/70202589" -o /dev/null -w '%{http_code}\n' > /tmp/nfresult6 &
+    wait
+    if [[ $(cat /tmp/nfresult1) = 404 && \
+    $(cat /tmp/nfresult2) = 404 && \
+    $(cat /tmp/nfresult3) = 404 && \
+    $(cat /tmp/nfresult4) = 404 && \
+    $(cat /tmp/nfresult5) = 404 && \
+    $(cat /tmp/nfresult6) = 404 ]];then
         echo -n -e "\r Netflix:\t\t\t\t${Font_Yellow}Homemade Only${Font_Suffix}\n"
         LemonBench_Result_MediaUnlockTest_Netflix="Homemade Only"
+        return 1
     fi
     
     _region=$(curl -X GET -sLI "https://www.netflix.com/title/80018499" 2>&1 | grep location | awk '{print $2}' | cut -d '/' -f4 | cut -d '-' -f1)
-    
     if [ -z "${_region}" ];then
         _region="US"
     fi
@@ -1091,7 +1094,7 @@ Function_MediaUnlockTest_Netflix() {
 }
 
 Function_MediaUnlockTest_DisneyPlus() {
-    _result=$(curl -sLI "https://www.disneyplus.com/movies/drain-the-titanic/5VNZom2KYtlb")
+    _result=$(curl -sLI --connect-timeout 5 "https://www.disneyplus.com/movies/drain-the-titanic/5VNZom2KYtlb")
     if [[ "${_result}" = *"unavailable"* ]]; then
         echo -n -e "\r DisneyPlus:\t\t\t\t${Font_Red}No${Font_Suffix}\n";
         LemonBench_Result_MediaUnlockTest_DisneyPlus="No"
