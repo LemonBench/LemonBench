@@ -1095,7 +1095,7 @@ Function_MediaUnlockTest_Netflix() {
 
 Function_MediaUnlockTest_DisneyPlus() {
     _result=$(curl -sLI "https://www.disneyplus.com/movies/drain-the-titanic/5VNZom2KYtlb")
-    if [[ "${_result} | grep" = *"unavailable"* ]]; then
+    if [[ "${_result}" = *"unavailable"* ]]; then
         echo -n -e "\r DisneyPlus:\t\t\t\t${Font_Red}No${Font_Suffix}\n";
         LemonBench_Result_MediaUnlockTest_DisneyPlus="No"
         return 1
