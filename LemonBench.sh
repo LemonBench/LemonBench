@@ -786,6 +786,7 @@ Function_MediaUnlockTest() {
     Function_MediaUnlockTest_BilibiliTW
     Function_MediaUnlockTest_Netflix
     Function_MediaUnlockTest_DisneyPlus
+    Function_MediaUnlockTest_ParamountPlus
     LBench_Flag_FinishMediaUnlockTest="1"
 }
 
@@ -1054,17 +1055,15 @@ Function_MediaUnlockTest_BBC() {
 }
 
 Function_MediaUnlockTest_Netflix() {
-    _result=$(curl -X GET -sLI "https://www.netflix.com/" -o /dev/null -w '%{http_code}\n')
+    _result=$(curl -X GET -sLI "https://www.netflix.com" -o /dev/null -w '%{http_code}\n')
     if [ "${_result}" = 403 ];then
         echo -n -e "\r Netflix:\t\t\t\t${Font_Red}No${Font_Suffix}\n"
         LemonBench_Result_MediaUnlockTest_Netflix="No"
-        return 1
     fi
     _result=$(curl -sL "https://www.netflix.com/title/80018499" -o /dev/null -w '%{http_code}\n')
     if [ "${_result}" != 200 ];then
         echo -n -e "\r Netflix:\t\t\t\t${Font_Red}No${Font_Suffix}\n"
         LemonBench_Result_MediaUnlockTest_Netflix="No"
-        return 1
     fi
     _result1=$(curl -X GET -sLI "https://www.netflix.com/title/70143836" -o /dev/null -w '%{http_code}\n')
     _result2=$(curl -X GET -sLI "https://www.netflix.com/title/80027042" -o /dev/null -w '%{http_code}\n')
@@ -1080,7 +1079,6 @@ Function_MediaUnlockTest_Netflix() {
        [ "${_result6}" = 404 ];then
         echo -n -e "\r Netflix:\t\t\t\t${Font_Yellow}Homemade Only${Font_Suffix}\n"
         LemonBench_Result_MediaUnlockTest_Netflix="Homemade Only"
-        return 1
     fi
     
     _region=$(curl -X GET -sLI "https://www.netflix.com/title/80018499" 2>&1 | grep location | awk '{print $2}' | cut -d '/' -f4 | cut -d '-' -f1)
@@ -1090,7 +1088,6 @@ Function_MediaUnlockTest_Netflix() {
     fi
     echo -n -e "\r Netflix:\t\t\t\t${Font_Green}Yes(Region: ${_region^^})${Font_Suffix}\n"
     LemonBench_Result_MediaUnlockTest_Netflix="Yes(Region: ${_region^^})"
-    return 0
 }
 
 Function_MediaUnlockTest_DisneyPlus() {
@@ -1098,20 +1095,31 @@ Function_MediaUnlockTest_DisneyPlus() {
     if [[ "${_result}" = *"unavailable"* ]]; then
         echo -n -e "\r DisneyPlus:\t\t\t\t${Font_Red}No${Font_Suffix}\n";
         LemonBench_Result_MediaUnlockTest_DisneyPlus="No"
-        return 1
     elif [[ "${_result}" = *"preview"* ]]; then
         echo -n -e "\r DisneyPlus:\t\t\t\t${Font_Yellow}Comming Soon${Font_Suffix}\n"
         LemonBench_Result_MediaUnlockTest_DisneyPlus="Comming Soon"
-        return 0
     elif [[ "${_result}" = *"x-dss-country"* ]] || [[ "${_result}" = *"optimizelyEndUserId"* ]]; then
         echo -n -e "\r DisneyPlus:\t\t\t\t${Font_Green}Yes${Font_Suffix}\n"
         LemonBench_Result_MediaUnlockTest_DisneyPlus="Yes"
-        return 0
     else
     echo -n -e "\r DisneyPlus:\t\t\t\t${Font_Red}No${Font_Suffix}\n";
     LemonBench_Result_MediaUnlockTest_DisneyPlus="No"
     fi
 }
+
+Function_MediaUnlockTest_ParamountPlus() {
+    _result=$(curl -sI "https://www.paramountplus.com" -o /dev/null -w '%{http_code}\n')
+    if [ "${_result}" = 200 ];then
+        echo -n -e "\r ParamountPlus:\t\t\t\t${Font_Green}Yes${Font_Suffix}\n"
+        LemonBench_Result_MediaUnlockTest_ParamountPlus="Yes"
+    fi
+    _result=$(curl -sIL "https://www.paramountplus.com/movies/iris/80ITMNcvCeHmYeFyPEws36NuysGFiRft")
+    if [[ "${_result}" = *"Location"* ]] && [[ "${_result}" = *"/intl/"* ]];then
+        echo -n -e "\r ParamountPlus:\t\t\t\t${Font_Red}No${Font_Suffix}\n"
+        LemonBench_Result_MediaUnlockTest_ParamountPlus="No"
+    fi
+}
+
 # =============== Speedtest 部分 ===============
 Run_Speedtest() {
     # 调用方式: Run_Speedtest "服务器ID" "节点名称(用于显示)"
@@ -1922,6 +1930,8 @@ Function_GenerateResult_MediaUnlockTest() {
         echo -e " Netflix :\t\t\t\t${LemonBench_Result_MediaUnlockTest_Netflix}" >>$rfile
         # DisneyPlus
         echo -e " DisneyPlus :\t\t\t\t${LemonBench_Result_MediaUnlockTest_DisneyPlus}" >>$rfile
+        # ParamountPlus
+        echo -e " ParamountPlus :\t\t\t${LemonBench_Result_MediaUnlockTest_ParamountPlus}" >>$rfile
     fi
 }
 
