@@ -404,22 +404,22 @@ function BenchAPI_Systeminfo_GetOSReleaseinfo() {
         local r_prettyname && r_prettyname="$(grep -oP '(?<=\bPRETTY_NAME=").*(?=")' /etc/os-release)"
         local r_elrepo_version && r_elrepo_version="$(rpm -qa | grep -oP "el[0-9]+" | sort -u)"
         case "$r_elrepo_version" in
-        9)
+        9 | el9)
             Result_Systeminfo_OSReleaseVersionShort="9"
             Result_Systeminfo_OSReleaseNameFull="$r_prettyname ($r_arch)"
             return 0
             ;;
-        8)
+        8 | el8)
             Result_Systeminfo_OSReleaseVersionShort="8"
             Result_Systeminfo_OSReleaseNameFull="$r_prettyname ($r_arch)"
             return 0
             ;;
-        7)
+        7 | el7)
             Result_Systeminfo_OSReleaseVersionShort="7"
             Result_Systeminfo_OSReleaseNameFull="$r_prettyname ($r_arch)"
             return 0
             ;;
-        6)
+        6 | el6)
             Result_Systeminfo_OSReleaseVersionShort="6"
             Result_Systeminfo_OSReleaseNameFull="$r_prettyname ($r_arch)"
             return 0
