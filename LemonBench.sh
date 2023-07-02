@@ -302,6 +302,12 @@ function BenchAPI_Systeminfo_GetVMMinfo() {
             Result_Systeminfo_isPhysical="0"
             return 0
             ;;
+        amazon)
+            Result_Systeminfo_VMMType="Amazon Virtualization"
+            Result_Systeminfo_VMMTypeShort="amazon"
+            Result_Systeminfo_isPhysical="0"
+            return 0
+            ;;
         docker)
             Result_Systeminfo_VMMType="Docker"
             Result_Systeminfo_VMMTypeShort="docker"
@@ -490,7 +496,7 @@ function BenchAPI_Networkinfo_GetNetworkinfo() {
     fi
     if [ "$r_r6_error" = "true" ]; then
         local r_r6=""
-    fi   
+    fi
     if [ "$r_r4" != "" ] && [ "$r_r6" = "" ]; then
         local r_ntype && r_ntype="ipv4"
         Result_Networkinfo_NetworkType="ipv4"
