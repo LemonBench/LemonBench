@@ -66,8 +66,8 @@ function BenchFunc_Systeminfo_ShowSysteminfo() {
     echo -e "\n${Font_Yellow} -> System Information${Font_Suffix}\n"
     echo -e " ${Font_Yellow}CPU Model Name:${Font_Suffix}\t\t${Font_SkyBlue}${Result_Systeminfo_CPUModelName}"
     echo -e " ${Font_Yellow}CPU Cache Size:${Font_Suffix}\t\t${Font_SkyBlue}L1: ${Result_Systeminfo_CPUCacheSizeL1} / L2: ${Result_Systeminfo_CPUCacheSizeL2} / L3: ${Result_Systeminfo_CPUCacheSizeL3}"
-    if [ "$Result_Systeminfo_isPhysical" = "1" ]; then
-        echo -e " ${Font_Yellow}CPU Specifications:${Font_Suffix}\t\t${Font_SkyBlue}${Result_Systeminfo_CPUSockets} Physical CPUs, ${Result_Systeminfo_CPUCores} Total Cores, ${Result_Systeminfo_CPUThreads} Total Threads"
+    if [ "${Result_Systeminfo_isPhysical}" = "1" ]; then
+        echo -e " ${Font_Yellow}CPU Specifications:${Font_Suffix}\t\t${Font_SkyBlue}${Result_Systeminfo_CPUSockets} Socket(s), ${Result_Systeminfo_CPUCores} Core(s), ${Result_Systeminfo_CPUThreads} Thread(s)"
         if [ "${Result_Systeminfo_VirtReady}" = "1" ]; then
             if [ "${Result_Systeminfo_IOMMU}" = "1" ]; then
                 echo -e " ${Font_Yellow}Virtualization Ready:${Font_Suffix}\t\t${Font_SkyBlue}Yes (Based on ${Result_Systeminfo_CPUVMX}, IOMMU Enabled)${Font_Suffix}"
@@ -75,11 +75,10 @@ function BenchFunc_Systeminfo_ShowSysteminfo() {
                 echo -e " ${Font_Yellow}Virtualization Ready:${Font_Suffix}\t\t${Font_SkyBlue}Yes (Based on ${Result_Systeminfo_CPUVMX})${Font_Suffix}"
             fi
         else
-            echo -e " ${Font_Yellow}CPU Specifications:${Font_Suffix}\t\t${Font_SkyBlue}${Result_Systeminfo_CPUSockets} Physical CPUs, ${Result_Systeminfo_CPUCores} Total Cores, ${Result_Systeminfo_CPUThreads} Total Threads${Font_Suffix}"
             echo -e " ${Font_Yellow}Virtualization Ready:${Font_Suffix}\t\t${Font_SkyBlue}No${Font_Suffix}"
         fi
     elif [ "$Result_Systeminfo_isPhysical" = "0" ]; then
-        echo -e " ${Font_Yellow}CPU Specifications:${Font_Suffix}\t\t${Font_SkyBlue}${Result_Systeminfo_CPUThreads} vCPU${Font_Suffix}"
+        echo -e " ${Font_Yellow}CPU Specifications:${Font_Suffix}\t\t${Font_SkyBlue}${Result_Systeminfo_CPUThreads} vCPU(s)${Font_Suffix}"
         if [ "${Result_Systeminfo_VirtReady}" = "1" ]; then
             if [ "${Result_Systeminfo_IOMMU}" = "1" ]; then
                 echo -e " ${Font_Yellow}Virtualization Ready:${Font_Suffix}\t\t${Font_SkyBlue}Yes (Based on ${Result_Systeminfo_CPUVMX}, Nested Virtualization Enabled, IOMMU Enabled${Font_Suffix})"
@@ -134,9 +133,17 @@ function BenchAPI_Systeminfo_GetCPUinfo() {
         local r_cachesize_l3="$r_cachesize_l3_k KB"
     fi
     local r_sockets && r_sockets="$(lscpu -B 2>/dev/null | grep -oP "(?<=Socket\(s\):).*(?=)" | sed -e 's/^[ ]*//g')"
-    local r_cores && r_cores="$(lscpu -B 2>/dev/null | grep -oP "(?<=Core\(s\) per socket:).*(?=)" | sed -e 's/^[ ]*//g')"
-    local r_threadpercore && r_threadpercore="$(lscpu -B 2>/dev/null | grep -oP "(?<=Thread\(s\) per core:).*(?=)" | sed -e 's/^[ ]*//g')"
-    local r_threads && r_threads="$(echo "$r_cores" "$r_threadpercore" | awk '{printf "%d\n",$1*$2}')"
+    if [ "$r_sockets" -ge "2" ]; then
+        local r_cores && r_cores="$(lscpu -B 2>/dev/null | grep -oP "(?<=Core\(s\) per socket:).*(?=)" | sed -e 's/^[ ]*//g')"
+        r_cores="$(echo "$r_sockets" "$r_cores" | awk '{printf "%d\n",$1*$2}')"
+        local r_threadpercore && r_threadpercore="$(lscpu -B 2>/dev/null | grep -oP "(?<=Thread\(s\) per core:).*(?=)" | sed -e 's/^[ ]*//g')"
+        local r_threads && r_threads="$(echo "$r_cores" "$r_threadpercore" | awk '{printf "%d\n",$1*$2}')"
+        r_threads="$(echo "$r_threadpercore" "$r_cores" | awk '{printf "%d\n",$1*$2}')"
+    else
+        local r_cores && r_cores="$(lscpu -B 2>/dev/null | grep -oP "(?<=Core\(s\) per socket:).*(?=)" | sed -e 's/^[ ]*//g')"
+        local r_threadpercore && r_threadpercore="$(lscpu -B 2>/dev/null | grep -oP "(?<=Thread\(s\) per core:).*(?=)" | sed -e 's/^[ ]*//g')"
+        local r_threads && r_threads="$(echo "$r_cores" "$r_threadpercore" | awk '{printf "%d\n",$1*$2}')"
+    fi
     # CPU AES能力检测
     # local t_aes && t_aes="$(awk -F ': ' '/flags/{print $2}' /proc/cpuinfo 2>/dev/null | grep -oE "\baes\b" | sort -u)"
     # [[ "${t_aes}" = "aes" ]] && Result_Systeminfo_CPUAES="1" || Result_Systeminfo_CPUAES="0"
