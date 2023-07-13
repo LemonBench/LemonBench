@@ -11,11 +11,11 @@ Document Language: English (Coming Soon) | 简体中文
 
 ### Quick Start
 ```
-wget -O- https://ilemonra.in/LemonBench-Beta | bash -s -- --fast
+wget -qO- https://raw.githubusercontent.com/LemonBench/LemonBench/main/LemonBench.sh | bash -s -- --fast
 ```
 (or)
 ```
-curl -fsL https://ilemonra.in/LemonBench-Beta | bash -s -- --fast
+curl -fsL https://raw.githubusercontent.com/LemonBench/LemonBench/main/LemonBench.sh | bash -s -- --fast
 ```
 
 ### Requirements
