@@ -415,7 +415,7 @@ function BenchAPI_Systeminfo_GetOSReleaseinfo() {
     if [ -f "/etc/centos-release" ] || [ -f "/etc/redhat-release" ]; then
         Result_Systeminfo_OSReleaseNameShort="centos"
         local r_prettyname && r_prettyname="$(grep -oP '(?<=\bPRETTY_NAME=").*(?=")' /etc/os-release)"
-        local r_elrepo_version && r_elrepo_version="$(rpm -qa | grep -oP "el[0-9]+" | sort -u)"
+        local r_elrepo_version && r_elrepo_version="$(rpm -qa | grep -oP "el[0-9]+" | sort -ur | head -n1)"
         case "$r_elrepo_version" in
         9 | el9)
             Result_Systeminfo_OSReleaseVersionShort="9"
