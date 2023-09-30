@@ -1712,7 +1712,7 @@ function BenchAPI_DepProcess_DepInst_FIO() {
 # -> 依赖处理 (Executor) -> 依赖安装 (Speedtest)
 function BenchAPI_DepProcess_DepInst_Speedtest() {
     [[ "${Flag_DepProcess_DepScan_CurlExist}" != "1" ]] && BenchAPI_DepProcess_DepInst_Curl
-    curl -o /tmp/speedtest.tar.gz https://raindrop.ilemonrain.com/LemonBench-v3/include/speedtest/speedtest-1.2.0-"$(arch)".tar.gz
+    curl -o /tmp/speedtest.tar.gz https://raw.githubusercontent.com/LemonBench/LemonBench/main/requirements/speedtest/speedtest-1.2.0-"$(arch)".tar.gz
     pushd /tmp/ >/dev/null 2>&1 || return 1
     tar xf /tmp/speedtest.tar.gz
     chmod +x /tmp/speedtest
