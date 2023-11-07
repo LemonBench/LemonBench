@@ -1737,7 +1737,7 @@ function BenchAPI_DepProcess_DepInst_Traceroute() {
 # -> 依赖处理 (Executor) -> 依赖安装 (NextTrace)
 function BenchAPI_DepProcess_DepInst_NextTrace() {
     [[ "${Flag_DepProcess_DepScan_CurlExist}" != "1" ]] && BenchAPI_DepProcess_DepInst_Curl
-    curl -o /tmp/nexttrace.tar.gz https://raw.githubusercontent.com/LemonBench/LemonBench/main/requirements/nexttrace/nexttrace-1.2.0-"$(arch)".tar.gz
+    curl -o /tmp/nexttrace.tar.gz https://raw.githubusercontent.com/LemonBench/LemonBench/main/requirements/nexttrace/nexttrace-1.2.4-"$(arch)".tar.gz
     pushd /tmp/ >/dev/null 2>&1 || return 1
     tar xf /tmp/nexttrace.tar.gz
     chmod +x /tmp/nexttrace
